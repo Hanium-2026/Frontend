@@ -1,2 +1,3 @@
 import AuthProfile from '../../src/screens/auth/AuthProfile';
-export default AuthProfile;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(AuthProfile);

@@ -1,2 +1,3 @@
 import CarePatientDetail from '../../src/screens/caregiver/CarePatientDetail';
-export default CarePatientDetail;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(CarePatientDetail);

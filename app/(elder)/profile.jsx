@@ -1,2 +1,3 @@
 import ElderProfile from '../../src/screens/elder/ElderProfile';
-export default ElderProfile;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(ElderProfile);

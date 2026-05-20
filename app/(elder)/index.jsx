@@ -1,2 +1,3 @@
 import ElderHome from '../../src/screens/elder/ElderHome';
-export default ElderHome;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(ElderHome);

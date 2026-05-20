@@ -1,2 +1,3 @@
 import CareInvite from '../../src/screens/auth/CareInvite';
-export default CareInvite;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(CareInvite);
