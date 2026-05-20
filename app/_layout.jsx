@@ -2,9 +2,11 @@ import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 
 SplashScreen.preventAutoHideAsync();
+
+const isWeb = Platform.OS === 'web';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -21,12 +23,37 @@ export default function RootLayout() {
 
   if (!loaded) return <View style={{ flex: 1, backgroundColor: '#fff' }}/>;
 
-  return (
+  const stack = (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index"/>
       <Stack.Screen name="(auth)"/>
       <Stack.Screen name="(elder)"/>
       <Stack.Screen name="(caregiver)"/>
     </Stack>
+  );
+
+  if (!isWeb) return stack;
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#E8ECF0', alignItems: 'center', justifyContent: 'center' }}>
+      <style>{`
+        @media (max-width: 480px) {
+          .phone-shell { border-radius: 0 !important; box-shadow: none !important; width: 100vw !important; height: 100vh !important; }
+        }
+      `}</style>
+      <View
+        className="phone-shell"
+        style={{
+          width: 390,
+          height: 844,
+          borderRadius: 44,
+          overflow: 'hidden',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.08)',
+          backgroundColor: '#fff',
+        }}
+      >
+        {stack}
+      </View>
+    </View>
   );
 }
