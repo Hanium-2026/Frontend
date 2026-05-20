@@ -1,0 +1,74 @@
+﻿import React from 'react';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
+import T from '../../tokens';
+import Icon from '../../icons';
+
+function StepBar({ step, total = 5 }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
+      {Array.from({ length: total }).map((_, i) => (
+        <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i < step ? T.blue : T.line }}/>
+      ))}
+    </View>
+  );
+}
+
+export default function AuthProfile() {
+  const router = useRouter();
+  return (
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon.arrowLeft width={18} height={18} color={T.ink}/>
+        </Pressable>
+        <StepBar step={3}/>
+      </View>
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 24 }}>
+        <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>기본 정보를{'\n'}알려주세요</Text>
+        <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>나이와 성별로 더 정확하게 분석해드려요</Text>
+
+        <View style={{ marginTop: 32 }}>
+          <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>이름</Text>
+          <View style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: T.line }}>
+            <Text style={{ fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}>김순자</Text>
+          </View>
+        </View>
+
+        <View style={{ marginTop: 22 }}>
+          <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>성별</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {[['여성', true],['남성', false]].map(([l, on], i) => (
+              <View key={i} style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: on ? T.blueSoft : '#fff', borderWidth: on ? 2 : 1.5, borderColor: on ? T.blue : T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                {on && <Icon.check width={18} height={18} color={T.blue}/>}
+                <Text style={{ fontSize: 16, fontFamily: T.fontBold, color: on ? T.blue : T.body }}>{l}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={{ marginTop: 22 }}>
+          <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>출생 연도</Text>
+          <View style={{ backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1.5, borderColor: T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}>1954년 (72세)</Text>
+            <Icon.chevron width={18} height={18} color={T.muted} style={{ transform: [{ rotate: '90deg' }] }}/>
+          </View>
+        </View>
+
+        <View style={{ marginTop: 20, padding: 14, backgroundColor: T.blueWash, borderRadius: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+          <Icon.shield width={16} height={16} color={T.blue}/>
+          <Text style={{ fontSize: 12, color: T.body, lineHeight: 20, flex: 1 }}>
+            입력하신 정보는 보행 분석에만 사용되며, 외부에 공유되지 않아요.
+          </Text>
+        </View>
+      </ScrollView>
+
+      <View style={{ padding: 20, paddingBottom: 36 }}>
+        <Pressable onPress={() => router.push('/(auth)/permissions')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>다음</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
