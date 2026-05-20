@@ -24,7 +24,7 @@ export default function RootLayout() {
   if (!loaded) return <View style={{ flex: 1, backgroundColor: '#fff' }}/>;
 
   const stack = (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, animationTypeForReplace: 'push' }}>
       <Stack.Screen name="index"/>
       <Stack.Screen name="(auth)"/>
       <Stack.Screen name="(elder)"/>

@@ -1,2 +1,3 @@
 import AuthPhone from '../../src/screens/auth/AuthPhone';
-export default AuthPhone;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(AuthPhone);

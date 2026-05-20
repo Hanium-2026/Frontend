@@ -1,2 +1,3 @@
 import CareDashboard from '../../src/screens/caregiver/CareDashboard';
-export default CareDashboard;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(CareDashboard);

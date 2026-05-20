@@ -1,2 +1,3 @@
 import CareAnalysis from '../../src/screens/caregiver/CareAnalysis';
-export default CareAnalysis;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(CareAnalysis);

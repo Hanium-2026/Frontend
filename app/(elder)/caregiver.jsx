@@ -1,2 +1,3 @@
 import ElderCaregiver from '../../src/screens/elder/ElderCaregiver';
-export default ElderCaregiver;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(ElderCaregiver);

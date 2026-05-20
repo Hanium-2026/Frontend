@@ -1,2 +1,3 @@
 import CareAlerts from '../../src/screens/caregiver/CareAlerts';
-export default CareAlerts;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(CareAlerts);

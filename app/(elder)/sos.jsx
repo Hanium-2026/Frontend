@@ -1,2 +1,3 @@
 import ElderSOS from '../../src/screens/elder/ElderSOS';
-export default ElderSOS;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(ElderSOS);

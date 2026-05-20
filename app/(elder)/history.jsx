@@ -1,2 +1,3 @@
 import ElderHistory from '../../src/screens/elder/ElderHistory';
-export default ElderHistory;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(ElderHistory);

@@ -1,2 +1,3 @@
 import ElderMeasure from '../../src/screens/elder/ElderMeasure';
-export default ElderMeasure;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(ElderMeasure);

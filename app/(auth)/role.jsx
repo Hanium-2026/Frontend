@@ -1,2 +1,3 @@
 import AuthRolePick from '../../src/screens/auth/AuthRolePick';
-export default AuthRolePick;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(AuthRolePick);

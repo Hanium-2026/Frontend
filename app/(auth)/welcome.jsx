@@ -1,2 +1,3 @@
 import AuthWelcome from '../../src/screens/auth/AuthWelcome';
-export default AuthWelcome;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(AuthWelcome);

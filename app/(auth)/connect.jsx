@@ -1,2 +1,3 @@
 import AuthConnect from '../../src/screens/auth/AuthConnect';
-export default AuthConnect;
+import { withSlide } from '../../src/components/ScreenSlide';
+export default withSlide(AuthConnect);
