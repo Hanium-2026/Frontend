@@ -3,9 +3,13 @@ import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
+import { authStore } from '../../store/authStore';
 
 export default function AuthWelcome() {
   const router = useRouter();
+  const { name, role } = authStore.get();
+  const displayName = name || '사용자';
+  const dest = role === 'caregiver' ? '/(caregiver)/' : '/(elder)/';
   return (
     <View style={{ flex: 1, backgroundColor: T.blue }}>
       <View style={{ flex: 1, paddingTop: 180, paddingHorizontal: 32, alignItems: 'center' }}>
@@ -14,7 +18,7 @@ export default function AuthWelcome() {
         </View>
 
         <Text style={{ fontSize: 32, fontFamily: T.fontExtraBold, color: '#fff', marginTop: 28, letterSpacing: -1, lineHeight: 40, textAlign: 'center' }}>
-          김순자님,{'\n'}이제 시작해요!
+          {displayName}님,{'\n'}이제 시작해요!
         </Text>
         <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', marginTop: 14, lineHeight: 24, textAlign: 'center' }}>
           평소처럼 걸으시면 자동으로{'\n'}분석해드릴게요
@@ -35,7 +39,7 @@ export default function AuthWelcome() {
       </View>
 
       <View style={{ padding: 20, paddingBottom: 40 }}>
-        <Pressable onPress={() => router.replace('/(elder)/')} style={{ height: 58, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={() => router.replace(dest)} style={{ height: 58, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: T.blue }}>NEVO 시작하기</Text>
         </Pressable>
       </View>

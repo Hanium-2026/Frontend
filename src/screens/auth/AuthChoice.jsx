@@ -47,7 +47,7 @@ export default function AuthChoice() {
         }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>처음이에요 · 시작하기</Text>
         </Pressable>
-        <Pressable style={{
+        <Pressable onPress={() => router.push('/(auth)/phone')} style={{
           height: 58, borderRadius: 14, backgroundColor: '#fff',
           alignItems: 'center', justifyContent: 'center',
           borderWidth: 1.5, borderColor: T.line,

@@ -1,8 +1,9 @@
-﻿import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
+import { authStore } from '../../store/authStore';
 
 function StepBar({ step, total = 5 }) {
   return (
@@ -14,61 +15,93 @@ function StepBar({ step, total = 5 }) {
   );
 }
 
+const CURRENT_YEAR = 2026;
+
 export default function AuthProfile() {
   const router = useRouter();
+  const [name, setName] = useState('');
+  const [gender, setGender] = useState('female');
+  const [birthYear, setBirthYear] = useState(1960);
+
+  const handleNext = () => {
+    authStore.set({ name, gender, birthYear });
+    router.push('/(auth)/permissions');
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon.arrowLeft width={18} height={18} color={T.ink}/>
-        </Pressable>
-        <StepBar step={3}/>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon.arrowLeft width={18} height={18} color={T.ink}/>
+          </Pressable>
+          <StepBar step={3}/>
+        </View>
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 24 }} keyboardShouldPersistTaps="handled">
+          <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>기본 정보를{'\n'}알려주세요</Text>
+          <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>나이와 성별로 더 정확하게 분석해드려요</Text>
+
+          <View style={{ marginTop: 32 }}>
+            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>이름</Text>
+            <TextInput
+              style={{
+                backgroundColor: T.bg, borderRadius: 12, padding: 16,
+                borderWidth: 1.5, borderColor: name ? T.blue : T.line,
+                fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink,
+              }}
+              value={name}
+              onChangeText={setName}
+              placeholder="이름을 입력하세요"
+              placeholderTextColor={T.muted}
+              returnKeyType="done"
+            />
+          </View>
+
+          <View style={{ marginTop: 22 }}>
+            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>성별</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[['여성', 'female'], ['남성', 'male']].map(([label, val], i) => {
+                const on = gender === val;
+                return (
+                  <Pressable key={i} onPress={() => setGender(val)} style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: on ? T.blueSoft : '#fff', borderWidth: on ? 2 : 1.5, borderColor: on ? T.blue : T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    {on && <Icon.check width={18} height={18} color={T.blue}/>}
+                    <Text style={{ fontSize: 16, fontFamily: T.fontBold, color: on ? T.blue : T.body }}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={{ marginTop: 22 }}>
+            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>출생 연도</Text>
+            <View style={{ backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1.5, borderColor: T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Pressable onPress={() => setBirthYear(y => Math.max(1920, y - 1))} style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
+                <Text style={{ fontSize: 24, fontFamily: T.fontBold, color: T.blue }}>−</Text>
+              </Pressable>
+              <Text style={{ fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}>
+                {birthYear}년 ({CURRENT_YEAR - birthYear}세)
+              </Text>
+              <Pressable onPress={() => setBirthYear(y => Math.min(2010, y + 1))} style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
+                <Text style={{ fontSize: 24, fontFamily: T.fontBold, color: T.blue }}>+</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={{ marginTop: 20, padding: 14, backgroundColor: T.blueWash, borderRadius: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+            <Icon.shield width={16} height={16} color={T.blue}/>
+            <Text style={{ fontSize: 12, color: T.body, lineHeight: 20, flex: 1 }}>
+              입력하신 정보는 보행 분석에만 사용되며, 외부에 공유되지 않아요.
+            </Text>
+          </View>
+        </ScrollView>
+
+        <View style={{ padding: 20, paddingBottom: 36 }}>
+          <Pressable onPress={handleNext} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>다음</Text>
+          </Pressable>
+        </View>
       </View>
-
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 24 }}>
-        <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>기본 정보를{'\n'}알려주세요</Text>
-        <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>나이와 성별로 더 정확하게 분석해드려요</Text>
-
-        <View style={{ marginTop: 32 }}>
-          <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>이름</Text>
-          <View style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: T.line }}>
-            <Text style={{ fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}>김순자</Text>
-          </View>
-        </View>
-
-        <View style={{ marginTop: 22 }}>
-          <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>성별</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {[['여성', true],['남성', false]].map(([l, on], i) => (
-              <View key={i} style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: on ? T.blueSoft : '#fff', borderWidth: on ? 2 : 1.5, borderColor: on ? T.blue : T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                {on && <Icon.check width={18} height={18} color={T.blue}/>}
-                <Text style={{ fontSize: 16, fontFamily: T.fontBold, color: on ? T.blue : T.body }}>{l}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={{ marginTop: 22 }}>
-          <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>출생 연도</Text>
-          <View style={{ backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1.5, borderColor: T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}>1954년 (72세)</Text>
-            <Icon.chevron width={18} height={18} color={T.muted} style={{ transform: [{ rotate: '90deg' }] }}/>
-          </View>
-        </View>
-
-        <View style={{ marginTop: 20, padding: 14, backgroundColor: T.blueWash, borderRadius: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-          <Icon.shield width={16} height={16} color={T.blue}/>
-          <Text style={{ fontSize: 12, color: T.body, lineHeight: 20, flex: 1 }}>
-            입력하신 정보는 보행 분석에만 사용되며, 외부에 공유되지 않아요.
-          </Text>
-        </View>
-      </ScrollView>
-
-      <View style={{ padding: 20, paddingBottom: 36 }}>
-        <Pressable onPress={() => router.push('/(auth)/permissions')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>다음</Text>
-        </Pressable>
-      </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }

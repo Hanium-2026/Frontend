@@ -58,6 +58,12 @@ export default function CareInvite() {
           <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>나중에 초대할게요</Text>
         </Pressable>
       </ScrollView>
+
+      <View style={{ padding: 20, paddingBottom: 36 }}>
+        <Pressable onPress={() => router.push('/(auth)/welcome')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>완료</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
