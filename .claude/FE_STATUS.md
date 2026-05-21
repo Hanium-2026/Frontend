@@ -168,6 +168,7 @@ T.ink / T.muted / T.line / T.bg
 | 날짜 | 결정 내용 |
 |------|----------|
 | 2026-05-21 | **보폭 → 이동 거리로 전체 교체** (ElderHome, ElderMeasure, ElderResult, CarePatientDetail, CareReport, CareAnalysis 6개 파일) |
+| 2026-05-21 | **측정 화면을 nevo-ai 추론 서버(`/score`)에 초안 연동** — expo-sensors 실측, 보행 게이트(정지/대기), 세션 요약 결과 (백엔드 세션 API와는 별개) |
 
 ---
 
@@ -260,12 +261,53 @@ TFLite 모델 → 2초 슬라이딩 윈도우 → 초당 score 출력
 
 ---
 
+## AI 측정 연동 (초안) — 2026-05-21
+
+> ⚠️ 이건 위 "백엔드 API 연동 가이드"의 **세션 API**(`localhost:8080`)와 **다른** 별개 연동입니다.
+> 실시간 보행 점수 계산용 **AI 추론 서버**(nevo-ai FastAPI, `:8000/score`)에 연결한 초안입니다.
+
+### 연동 구조
+```
+[폰 Expo Go] ElderMeasure
+  expo-sensors(가속도+자이로 ~50Hz) → 128샘플(2.56초) 윈도우
+  → POST http://<노트북IP>:8000/score        (nevo-ai FastAPI)
+  ← { activityState, score, riskLevel, cadence }  ~1.3초마다
+정지 버튼 → 세션 요약 → ElderResult
+```
+
+### 변경/추가 파일
+| 파일 | 변경 |
+|------|------|
+| `package.json` | `expo-sensors` 추가 |
+| `src/api.js` | **신규** — 추론 서버 URL(`API_BASE`) + `scoreWindow()` |
+| `src/store/sessionStore.js` | **신규** — 측정→결과 세션 요약 전달 |
+| `src/screens/elder/ElderMeasure.jsx` | 목업 → 실제 IMU 수집·AI 점수·보행 게이트·세션 누적 |
+| `src/screens/elder/ElderResult.jsx` | 목업 → 실제 세션 요약 표시 |
+| `src/components/IMUTrace.jsx` | `data` prop 추가 (실시간 파형 지원) |
+
+### 동작
+- **걷는 중**: 점수(0~100)·정상/이상·케이던스가 ~1.3초마다 갱신
+- **정지**: "정지 · 보행 대기" 표시, 점수 안 매김 (오탐 방지 — 서버 보행 게이트)
+- **정지 버튼**: 세션 요약(평균/최저/최고 점수, 평균 케이던스, 의심 비율, 종합 위험도) → 결과 화면
+
+### 설정 / 실행
+- `src/api.js`의 `API_BASE` IP를 노트북 IP로 맞출 것 (현재 `http://172.30.1.24:8000`)
+- 폰·노트북 **같은 WiFi**, nevo-ai 추론 서버 실행 필요 (`..\nevo-ai\README.md` 참고)
+- 방화벽에서 8000 포트(개인 네트워크) 허용 필요할 수 있음
+
+### 한계
+- 모델은 MobiAct(Galaxy S3) 학습 → 다른 폰은 도메인 갭. **점수 절대값보다 상대 변화로 해석**.
+- 운영 목표는 온디바이스 TFLite. 이건 노트북 서버 기반 **초안(end-to-end 검증용)**.
+
+---
+
 ## 다음에 할 작업 (미완성)
 
-- [ ] 실제 API 연동 (측정 화면 → 백엔드 세션 API)
+- [x] 측정 화면 ↔ **AI 추론 서버**(`/score`, nevo-ai) 연동 — 초안 완료 (2026-05-21, 위 "AI 측정 연동" 섹션)
+- [ ] 백엔드 **세션** API 연동 (측정 화면 → `/api/gait/sessions`, `localhost:8080`) — *위 추론 서버와 별개*
 - [ ] 로그인/인증 토큰 관리 (JWT 저장, 갱신)
 - [ ] SQLite 로컬 저장 (expo-sqlite)
-- [ ] TFLite 모델 연동 (Kotlin 네이티브 모듈)
+- [ ] TFLite 온디바이스 모델 연동 (Kotlin 네이티브) — 현재는 노트북 추론 서버로 대체 중
 - [ ] FCM 푸시 알림 수신 처리
 - [ ] Vercel 실제 배포
 - [ ] 전체 화면 디자인 QA (간격, 폰트 등 세부 조정)
