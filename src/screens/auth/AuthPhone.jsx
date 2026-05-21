@@ -1,8 +1,9 @@
-﻿import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
+import { authStore } from '../../store/authStore';
 
 function StepBar({ step, total = 5 }) {
   return (
@@ -14,8 +15,28 @@ function StepBar({ step, total = 5 }) {
   );
 }
 
+const fmt = (d) => {
+  const p = d.padEnd(11, '_');
+  return `${p.slice(0, 3)}-${p.slice(3, 7)}-${p.slice(7)}`;
+};
+
 export default function AuthPhone() {
   const router = useRouter();
+  const [digits, setDigits] = useState('');
+
+  const handleKey = (k) => {
+    if (k === '⌫') {
+      setDigits(d => d.slice(0, -1));
+    } else if (digits.length < 11) {
+      setDigits(d => d + k);
+    }
+  };
+
+  const handleNext = () => {
+    authStore.set({ phone: digits });
+    router.push('/(auth)/otp');
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -33,7 +54,9 @@ export default function AuthPhone() {
           <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontBold, letterSpacing: 0.6 }}>전화번호</Text>
           <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 2, borderBottomColor: T.blue }}>
             <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: T.muted }}>+82</Text>
-            <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: T.ink }}>010-1234-5___</Text>
+            <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: digits.length > 0 ? T.ink : T.muted }}>
+              {fmt(digits)}
+            </Text>
           </View>
         </View>
 
@@ -46,7 +69,8 @@ export default function AuthPhone() {
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingTop: 16 }}>
           {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
-            <Pressable key={i} disabled={!k} style={{ width: '33.33%', height: 52, borderRadius: 10, backgroundColor: k ? '#fff' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable key={i} onPress={() => k && handleKey(k)} disabled={!k}
+              style={{ width: '33.33%', height: 52, borderRadius: 10, backgroundColor: k ? '#fff' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 22, fontFamily: T.fontSemiBold, color: T.ink }}>{k}</Text>
             </Pressable>
           ))}
@@ -54,7 +78,7 @@ export default function AuthPhone() {
       </View>
 
       <View style={{ padding: 20, paddingBottom: 36 }}>
-        <Pressable onPress={() => router.push('/(auth)/otp')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={handleNext} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>인증번호 받기</Text>
         </Pressable>
       </View>

@@ -1,12 +1,23 @@
-﻿import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Pill from '../../components/Pill';
+import { authStore } from '../../store/authStore';
 
 export default function AuthRolePick() {
   const router = useRouter();
+  const [role, setRole] = useState('elder');
+
+  const handleNext = () => {
+    authStore.set({ role });
+    router.push('/(auth)/phone');
+  };
+
+  const elderOn = role === 'elder';
+  const careOn = role === 'caregiver';
+
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <View style={{ paddingTop: 54, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -28,20 +39,27 @@ export default function AuthRolePick() {
         </Text>
 
         {/* 노약자 카드 */}
-        <View style={{
+        <Pressable onPress={() => setRole('elder')} style={{
           marginTop: 28, backgroundColor: '#fff', borderRadius: 18, padding: 20,
-          borderWidth: 2, borderColor: T.blue,
-          shadowColor: T.blue, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.1, shadowRadius: 24, elevation: 4,
+          borderWidth: elderOn ? 2 : 1.5,
+          borderColor: elderOn ? T.blue : T.line,
+          shadowColor: elderOn ? T.blue : '#000',
+          shadowOffset: { width: 0, height: elderOn ? 8 : 2 },
+          shadowOpacity: elderOn ? 0.1 : 0.04,
+          shadowRadius: elderOn ? 24 : 8,
+          elevation: elderOn ? 4 : 1,
         }}>
-          <View style={{
-            position: 'absolute', top: 14, right: 14, width: 26, height: 26, borderRadius: 13,
-            backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Icon.check width={16} height={16} color="#fff"/>
-          </View>
+          {elderOn && (
+            <View style={{
+              position: 'absolute', top: 14, right: 14, width: 26, height: 26, borderRadius: 13,
+              backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon.check width={16} height={16} color="#fff"/>
+            </View>
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon.user width={30} height={30} color="#fff"/>
+            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: elderOn ? T.blue : T.bg, alignItems: 'center', justifyContent: 'center', borderWidth: elderOn ? 0 : 1, borderColor: T.line }}>
+              <Icon.user width={30} height={30} color={elderOn ? '#fff' : T.body}/>
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -52,23 +70,40 @@ export default function AuthRolePick() {
             </View>
           </View>
           <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: T.line, gap: 8 }}>
-            {[['walk','평소처럼 걸으면 자동 측정'],['brain','AI가 보행 패턴을 분석'],['sos','비상 시 가족과 119에 알림']].map(([i,t],k) => {
-              const I = Icon[i];
+            {[['walk','평소처럼 걸으면 자동 측정'],['brain','AI가 보행 패턴을 분석'],['sos','비상 시 가족과 119에 알림']].map(([ic, t], k) => {
+              const I = Icon[ic];
               return (
                 <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <I width={16} height={16} color={T.blue}/>
+                  <I width={16} height={16} color={elderOn ? T.blue : T.muted}/>
                   <Text style={{ fontSize: 13, color: T.body, fontFamily: T.fontMedium }}>{t}</Text>
                 </View>
               );
             })}
           </View>
-        </View>
+        </Pressable>
 
         {/* 보호자 카드 */}
-        <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 18, padding: 20, borderWidth: 1.5, borderColor: T.line }}>
+        <Pressable onPress={() => setRole('caregiver')} style={{
+          marginTop: 12, backgroundColor: '#fff', borderRadius: 18, padding: 20,
+          borderWidth: careOn ? 2 : 1.5,
+          borderColor: careOn ? T.blue : T.line,
+          shadowColor: careOn ? T.blue : '#000',
+          shadowOffset: { width: 0, height: careOn ? 8 : 2 },
+          shadowOpacity: careOn ? 0.1 : 0.04,
+          shadowRadius: careOn ? 24 : 8,
+          elevation: careOn ? 4 : 1,
+        }}>
+          {careOn && (
+            <View style={{
+              position: 'absolute', top: 14, right: 14, width: 26, height: 26, borderRadius: 13,
+              backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon.check width={16} height={16} color="#fff"/>
+            </View>
+          )}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: T.line }}>
-              <Icon.family width={30} height={30} color={T.body}/>
+            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: careOn ? T.blue : T.bg, alignItems: 'center', justifyContent: 'center', borderWidth: careOn ? 0 : 1, borderColor: T.line }}>
+              <Icon.family width={30} height={30} color={careOn ? '#fff' : T.body}/>
             </View>
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -79,21 +114,21 @@ export default function AuthRolePick() {
             </View>
           </View>
           <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: T.line, gap: 8 }}>
-            {[['chart','여러 가족 한눈에 모니터링'],['bell','위험 신호 즉시 알림'],['doc','의료진에게 PDF 리포트 공유']].map(([i,t],k) => {
-              const I = Icon[i];
+            {[['chart','여러 가족 한눈에 모니터링'],['bell','위험 신호 즉시 알림'],['doc','의료진에게 PDF 리포트 공유']].map(([ic, t], k) => {
+              const I = Icon[ic];
               return (
                 <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <I width={16} height={16} color={T.muted}/>
+                  <I width={16} height={16} color={careOn ? T.blue : T.muted}/>
                   <Text style={{ fontSize: 13, color: T.body, fontFamily: T.fontMedium }}>{t}</Text>
                 </View>
               );
             })}
           </View>
-        </View>
+        </Pressable>
       </ScrollView>
 
       <View style={{ padding: 20, paddingBottom: 36 }}>
-        <Pressable onPress={() => router.push('/(auth)/phone')} style={{
+        <Pressable onPress={handleNext} style={{
           height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center',
         }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>다음</Text>

@@ -1,8 +1,9 @@
-﻿import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
+import { authStore } from '../../store/authStore';
 
 function StepBar({ step, total = 5 }) {
   return (
@@ -14,14 +15,24 @@ function StepBar({ step, total = 5 }) {
   );
 }
 
+const PERMS = [
+  { i: 'walk',  t: '걸음 측정',          s: '주머니에 있을 때 자동 측정', need: '필수' },
+  { i: 'bell',  t: '알림',               s: '측정 결과와 가족 알림',      need: '필수' },
+  { i: 'pin',   t: '위치 (선택)',        s: '응급 시 가족에게 위치 전송',  need: '선택' },
+  { i: 'heart', t: '건강 데이터 (선택)', s: 'Apple 건강과 연동',          need: '선택' },
+];
+
 export default function AuthPermissions() {
   const router = useRouter();
-  const perms = [
-    { i: 'walk',  t: '걸음 측정',         s: '주머니에 있을 때 자동 측정', need: '필수', on: true  },
-    { i: 'bell',  t: '알림',              s: '측정 결과와 가족 알림',     need: '필수', on: true  },
-    { i: 'pin',   t: '위치 (선택)',       s: '응급 시 가족에게 위치 전송', need: '선택', on: false },
-    { i: 'heart', t: '건강 데이터 (선택)', s: 'Apple 건강과 연동',        need: '선택', on: false },
-  ];
+  const [enabled, setEnabled] = useState([true, true, false, false]);
+
+  const toggle = (i) => setEnabled(prev => prev.map((v, j) => j === i ? !v : v));
+
+  const handleNext = () => {
+    const { role } = authStore.get();
+    router.push(role === 'caregiver' ? '/(auth)/invite' : '/(auth)/connect');
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -36,12 +47,13 @@ export default function AuthPermissions() {
         <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>정확한 측정과 가족 알림을 위해 사용됩니다</Text>
 
         <View style={{ marginTop: 28, gap: 10 }}>
-          {perms.map((p, i) => {
+          {PERMS.map((p, i) => {
             const I = Icon[p.i];
+            const on = enabled[i];
             return (
-              <View key={i} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: p.on ? T.blueChip : T.line, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: p.on ? T.blueSoft : T.bg, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <I width={22} height={22} color={p.on ? T.blue : T.muted}/>
+              <Pressable key={i} onPress={() => toggle(i)} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: on ? T.blueChip : T.line, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: on ? T.blueSoft : T.bg, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <I width={22} height={22} color={on ? T.blue : T.muted}/>
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -52,17 +64,17 @@ export default function AuthPermissions() {
                   </View>
                   <Text style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{p.s}</Text>
                 </View>
-                <View style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: p.on ? T.blue : T.line, justifyContent: 'center', flexShrink: 0 }}>
-                  <View style={{ position: 'absolute', top: 2, left: p.on ? 20 : 2, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}/>
+                <View style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: on ? T.blue : T.line, justifyContent: 'center', flexShrink: 0 }}>
+                  <View style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}/>
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
       </ScrollView>
 
       <View style={{ padding: 20, paddingBottom: 36 }}>
-        <Pressable onPress={() => router.push('/(auth)/connect')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={handleNext} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>모두 허용하기</Text>
         </Pressable>
         <Text style={{ marginTop: 12, fontSize: 12.5, color: T.muted, textAlign: 'center' }}>언제든지 설정에서 변경할 수 있어요</Text>
