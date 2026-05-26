@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+﻿import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -9,6 +9,9 @@ import Pill from '../../components/Pill';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
+import { getMe } from '../../api/user';
+import { getPhysicalInfo } from '../../api/ward';
+import { logout } from '../../api/auth';
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
@@ -36,7 +39,35 @@ const etcItems = [
   ['doc',      '이용 가이드'],
 ];
 
+const CURRENT_YEAR = 2026;
+
 export default function ElderProfile() {
+  const router = useRouter();
+  const [me, setMe] = useState(null);     // { id, phone, name, role }
+  const [ward, setWard] = useState(null); // { height, weight, birthDate, gender }
+
+  useEffect(() => {
+    getMe().then(setMe).catch(() => setMe(null));
+    getPhysicalInfo().then(setWard).catch(() => setWard(null));
+  }, []);
+
+  const name = me?.name || '사용자';
+  const sub = ward ? [
+    ward.gender === 'MALE' ? '남' : '여',
+    ward.birthDate ? `${CURRENT_YEAR - new Date(ward.birthDate).getFullYear()}세` : null,
+    ward.height ? `${Math.round(ward.height)}cm` : null,
+  ].filter(Boolean).join(' · ') : (me?.phone || '');
+
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '로그아웃 하시겠어요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '로그아웃', style: 'destructive', onPress: async () => {
+        await logout();
+        router.replace('/(auth)/');
+      } },
+    ]);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <AppHeader title="내 정보"/>
@@ -44,18 +75,11 @@ export default function ElderProfile() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View style={{ paddingHorizontal: 16 }}>
           <Card pad={18} style={{ borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Avatar name="김순자" size={62}/>
+            <Avatar name={name} size={62}/>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 19, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>김순자</Text>
-              <Text style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>여 · 72세 · 158cm</Text>
-              <View style={{ marginTop: 6, flexDirection: 'row', gap: 6 }}>
-                <Pill tone="info" size="sm">고혈압</Pill>
-                <Pill tone="info" size="sm">당뇨</Pill>
-              </View>
+              <Text style={{ fontSize: 19, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{name}</Text>
+              <Text style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{sub}</Text>
             </View>
-            <Pressable style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon.chevron width={14} height={14} color={T.muted}/>
-            </Pressable>
           </Card>
         </View>
 
@@ -117,6 +141,10 @@ export default function ElderProfile() {
               );
             })}
           </Card>
+
+          <Pressable onPress={handleLogout} style={{ marginTop: 16, paddingVertical: 16, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line, alignItems: 'center' }}>
+            <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.danger }}>로그아웃</Text>
+          </Pressable>
         </View>
       </ScrollView>
 

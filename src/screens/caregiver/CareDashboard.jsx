@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+﻿import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -9,6 +9,7 @@ import Pill from '../../components/Pill';
 import SparkLine from '../../components/SparkLine';
 import Avatar from '../../components/Avatar';
 import TabBar from '../../components/TabBar';
+import { getDashboard } from '../../api/reports';
 
 const CARE_TABS = [
   { icon: 'home',     label: '대시보드', path: '/(caregiver)/' },
@@ -18,24 +19,49 @@ const CARE_TABS = [
   { icon: 'settings', label: '설정',    path: '/(caregiver)/settings' },
 ];
 
-const patients = [
-  { n: '김순자', r: '어머니', age: 72, s: 79, tone: 'ok',      sub: '안정 · 5분 전',      trend: [72,74,75,73,78,77,79], steps: '2,840' },
-  { n: '박영호', r: '아버지', age: 78, s: 62, tone: 'caution', sub: '주의 · 좌우차 ↑',    trend: [68,70,67,65,63,64,62], steps: '1,205' },
-  { n: '이정희', r: '시모',   age: 81, s: 54, tone: 'danger',  sub: '위험 · 30분 전 알림', trend: [60,58,57,55,56,52,54], steps: '420 · 활동 적음' },
-];
-
 const toneScore = { ok: T.ok, caution: T.caution, danger: T.danger };
 const toneSub   = { ok: T.body, caution: '#8B5A06', danger: '#9B1B1B' };
+const toneLabel = { ok: '안정', caution: '주의', danger: '위험' };
+
+// 백엔드는 riskLevel(NORMAL/SUSPECTED)만 제공 → 점수까지 반영해 3단계 톤 산출
+const toneOf = (w) => w.latestScore == null ? 'ok'
+  : w.latestScore < 50 ? 'danger'
+  : w.riskLevel === 'SUSPECTED' ? 'caution' : 'ok';
+
+function fmtAgo(iso) {
+  if (!iso) return '측정 기록 없음';
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diff < 1) return '방금 전';
+  if (diff < 60) return `${diff}분 전`;
+  if (diff < 1440) return `${Math.floor(diff / 60)}시간 전`;
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 export default function CareDashboard() {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [wards, setWards] = useState([]);
+
+  useEffect(() => {
+    getDashboard()
+      .then((d) => setWards(d?.wards ?? []))
+      .catch(() => setWards([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const enriched = wards.map((w) => ({ ...w, tone: toneOf(w) }));
+  const cautionCount = enriched.filter((w) => w.tone === 'caution').length;
+  const dangerCount = enriched.filter((w) => w.tone === 'danger').length;
+  const alertWard = enriched.find((w) => w.tone === 'danger') || enriched.find((w) => w.tone === 'caution');
+
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       {/* header */}
       <View style={{ paddingTop: 54, paddingBottom: 14, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
-            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontSemiBold }}>안녕하세요, 민지님</Text>
+            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontSemiBold }}>안녕하세요</Text>
             <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, marginTop: 2 }}>가족 보행 상태</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -49,7 +75,7 @@ export default function CareDashboard() {
 
         {/* summary tiles */}
         <View style={{ marginTop: 14, flexDirection: 'row', gap: 8 }}>
-          {[['전체','3','명', T.ink], ['주의','1','명', T.caution], ['위험','1','명', T.danger]].map(([l,v,s,c], i) => (
+          {[['전체', String(enriched.length), '명', T.ink], ['주의', String(cautionCount), '명', T.caution], ['위험', String(dangerCount), '명', T.danger]].map(([l,v,s,c], i) => (
             <View key={i} style={{ flex: 1, backgroundColor: T.bg, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: T.line }}>
               <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontSemiBold }}>{l}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, marginTop: 2 }}>
@@ -62,50 +88,67 @@ export default function CareDashboard() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        {/* alert banner */}
-        <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
-          <Pressable onPress={() => router.push('/(caregiver)/alerts')} style={{ backgroundColor: T.dangerSoft, borderWidth: 1, borderColor: '#F8BFBF', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: T.danger, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon.bell width={20} height={20} color="#fff"/>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#9B1B1B' }}>이정희님 · 보행 점수 급락</Text>
-              <Text style={{ fontSize: 11.5, color: '#9B1B1B', opacity: 0.8, marginTop: 1 }}>최근 5일간 60→54점 · 의료진 상담 권장</Text>
-            </View>
-            <Icon.chevron width={14} height={14} color="#9B1B1B"/>
-          </Pressable>
-        </View>
-
-        {/* patient cards */}
-        <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
-          <SectionLabel action="추가">돌보는 가족</SectionLabel>
-          <View style={{ gap: 10 }}>
-            {patients.map((p, i) => (
-              <Pressable key={i} onPress={() => router.push('/(caregiver)/patient-detail')}>
-                <Card pad={0} style={{ borderRadius: 16 }}>
-                  <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <Avatar name={p.n} size={48}/>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6 }}>
-                        <Text style={{ fontSize: 15, fontFamily: T.fontExtraBold, color: T.ink }}>{p.n}</Text>
-                        <Text style={{ fontSize: 11.5, color: T.muted }}>{p.r} · {p.age}세</Text>
-                      </View>
-                      <Text style={{ fontSize: 12, color: toneSub[p.tone], marginTop: 3, fontFamily: T.fontSemiBold }}>{p.sub}</Text>
-                      <Text style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>걸음 {p.steps}</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: toneScore[p.tone], letterSpacing: -0.6, lineHeight: 30 }}>{p.s}</Text>
-                      <Pill tone={p.tone} size="sm">{p.tone === 'ok' ? '안정' : p.tone === 'caution' ? '주의' : '위험'}</Pill>
-                    </View>
-                  </View>
-                  <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
-                    <SparkLine data={p.trend} width={344} height={42} color={toneScore[p.tone]}/>
-                  </View>
-                </Card>
-              </Pressable>
-            ))}
+        {loading ? (
+          <View style={{ paddingTop: 80, alignItems: 'center' }}>
+            <ActivityIndicator color={T.blue}/>
           </View>
-        </View>
+        ) : enriched.length === 0 ? (
+          <View style={{ paddingTop: 80, paddingHorizontal: 32, alignItems: 'center' }}>
+            <Icon.family width={40} height={40} color={T.line}/>
+            <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center' }}>연동된 가족이 없어요.{'\n'}노약자 앱에서 발급한 코드로 연결해 주세요.</Text>
+          </View>
+        ) : (
+          <>
+            {/* alert banner (주의/위험 노약자가 있을 때만) */}
+            {alertWard && (
+              <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+                <Pressable onPress={() => router.push('/(caregiver)/alerts')} style={{ backgroundColor: T.dangerSoft, borderWidth: 1, borderColor: '#F8BFBF', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: T.danger, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon.bell width={20} height={20} color="#fff"/>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#9B1B1B' }}>{alertWard.name}님 · 보행 주의 신호</Text>
+                    <Text style={{ fontSize: 11.5, color: '#9B1B1B', opacity: 0.8, marginTop: 1 }}>최근 점수 {alertWard.latestScore != null ? Math.round(alertWard.latestScore) : '--'}점 · 상태 확인을 권장해요</Text>
+                  </View>
+                  <Icon.chevron width={14} height={14} color="#9B1B1B"/>
+                </Pressable>
+              </View>
+            )}
+
+            {/* patient cards */}
+            <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+              <SectionLabel>돌보는 가족</SectionLabel>
+              <View style={{ gap: 10 }}>
+                {enriched.map((w) => {
+                  const spark = (w.trend ?? []).filter((v) => v != null).map((v) => Math.round(v));
+                  const score = w.latestScore != null ? Math.round(w.latestScore) : '--';
+                  return (
+                    <Pressable key={w.wardId} onPress={() => router.push({ pathname: '/(caregiver)/patient-detail', params: { wardId: String(w.wardId), name: w.name } })}>
+                      <Card pad={0} style={{ borderRadius: 16 }}>
+                        <View style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <Avatar name={w.name} size={48}/>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 15, fontFamily: T.fontExtraBold, color: T.ink }}>{w.name}</Text>
+                            <Text style={{ fontSize: 12, color: toneSub[w.tone], marginTop: 3, fontFamily: T.fontSemiBold }}>{toneLabel[w.tone]} · {fmtAgo(w.lastSessionAt)}</Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: toneScore[w.tone], letterSpacing: -0.6, lineHeight: 30 }}>{score}</Text>
+                            <Pill tone={w.tone} size="sm">{toneLabel[w.tone]}</Pill>
+                          </View>
+                        </View>
+                        {spark.length >= 2 && (
+                          <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
+                            <SparkLine data={spark} width={344} height={42} color={toneScore[w.tone]}/>
+                          </View>
+                        )}
+                      </Card>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       <TabBar tabs={CARE_TABS} active={0}/>

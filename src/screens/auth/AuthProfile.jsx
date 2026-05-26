@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { authStore } from '../../store/authStore';
 
-function StepBar({ step, total = 5 }) {
+function StepBar({ step, total = 6 }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
       {Array.from({ length: total }).map((_, i) => (
@@ -19,13 +19,29 @@ const CURRENT_YEAR = 2026;
 
 export default function AuthProfile() {
   const router = useRouter();
+  const isWard = authStore.get().role !== 'caregiver';
   const [name, setName] = useState('');
   const [gender, setGender] = useState('female');
   const [birthYear, setBirthYear] = useState(1960);
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
 
   const handleNext = () => {
-    authStore.set({ name, gender, birthYear });
-    router.push('/(auth)/permissions');
+    if (!name.trim()) {
+      Alert.alert('이름 확인', '이름을 입력해주세요.');
+      return;
+    }
+    // WARD(노약자)는 키·몸무게가 회원가입 필수 (백엔드 검증)
+    if (isWard) {
+      const h = parseFloat(height), w = parseFloat(weight);
+      if (!(h > 0) || !(w > 0)) {
+        Alert.alert('신체 정보 확인', '키와 몸무게를 입력해주세요.');
+        return;
+      }
+      authStore.set({ height: h, weight: w });
+    }
+    authStore.set({ name: name.trim(), gender, birthYear });
+    router.push('/(auth)/password');
   };
 
   return (
@@ -87,6 +103,35 @@ export default function AuthProfile() {
               </Pressable>
             </View>
           </View>
+
+          {isWard && (
+            <View style={{ marginTop: 22, flexDirection: 'row', gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>키 (cm)</Text>
+                <TextInput
+                  style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: height ? T.blue : T.line, fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}
+                  value={height}
+                  onChangeText={(t) => setHeight(t.replace(/[^0-9.]/g, ''))}
+                  placeholder="160"
+                  placeholderTextColor={T.muted}
+                  keyboardType="decimal-pad"
+                  maxLength={5}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>몸무게 (kg)</Text>
+                <TextInput
+                  style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: weight ? T.blue : T.line, fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}
+                  value={weight}
+                  onChangeText={(t) => setWeight(t.replace(/[^0-9.]/g, ''))}
+                  placeholder="58"
+                  placeholderTextColor={T.muted}
+                  keyboardType="decimal-pad"
+                  maxLength={5}
+                />
+              </View>
+            </View>
+          )}
 
           <View style={{ marginTop: 20, padding: 14, backgroundColor: T.blueWash, borderRadius: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
             <Icon.shield width={16} height={16} color={T.blue}/>

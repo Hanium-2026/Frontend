@@ -8,10 +8,21 @@ import Icon from '../../icons';
 import IMUTrace from '../../components/IMUTrace';
 import { scoreWindow } from '../../api';
 import { sessionStore } from '../../store/sessionStore';
+import { tokenStore } from '../../store/tokenStore';
+import { ensureSession, uploadData, stopSession, uploadAnalysis, toMinuteAt } from '../../api/session';
 
 const WINDOW = 128;   // 2.56초 @ 50Hz
 const STRIDE = 64;    // 1.28초마다 분석
 const HZ_MS = 20;     // ~50Hz
+
+// 분 버킷 → 백엔드 MinuteData 형식
+const aggregateMinute = (m) => ({
+  minuteAt: m.key,
+  avgScore: Math.round(m.scores.reduce((x, y) => x + y, 0) / m.scores.length),
+  minScore: Math.round(Math.min(...m.scores)),
+  maxScore: Math.round(Math.max(...m.scores)),
+  dangerCount: m.danger,
+});
 
 export default function ElderMeasure() {
   const router = useRouter();
@@ -22,10 +33,25 @@ export default function ElderMeasure() {
   const inflightRef = useRef(false);
   const accRef = useRef({ scores: [], cadences: [], suspected: 0 });  // 세션 누적(걷기만)
 
+  // 백엔드 세션 연동(로그인된 WARD만). 점수 계산은 AI 서버, 분당 집계만 백엔드로 업로드.
+  const useBackend = tokenStore.isLoggedIn() && tokenStore.getRole() === 'WARD';
+  const sessionIdRef = useRef(null);
+  const minuteRef = useRef({ key: null, scores: [], danger: 0 });  // 현재 분 버킷
+
   const [result, setResult] = useState(null);   // {score, riskLevel, error, ratio}
   const [count, setCount] = useState(0);         // 분석한 윈도우 수
   const [status, setStatus] = useState('센서 준비 중...');
   const [trace, setTrace] = useState({ x: null, y: null, z: null });  // 실시간 3축 파형
+
+  // 측정 화면 진입 시 세션 확보(진행 중이면 복원, 없으면 시작). 실패해도 측정은 계속.
+  useEffect(() => {
+    if (!useBackend) return;
+    let alive = true;
+    ensureSession()
+      .then((s) => { if (alive) sessionIdRef.current = s?.sessionId ?? null; })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     Accelerometer.setUpdateInterval(HZ_MS);
@@ -60,6 +86,21 @@ export default function ElderMeasure() {
               a.scores.push(r.score);
               a.cadences.push(r.cadence ?? 0);
               if (r.riskLevel === 'SUSPECTED') a.suspected += 1;
+
+              // 분당 집계: 분이 바뀌면 직전 분을 백엔드로 업로드(중복 전송은 서버가 무시)
+              if (useBackend) {
+                const key = toMinuteAt();
+                const m = minuteRef.current;
+                if (m.key && m.key !== key && m.scores.length) {
+                  const sid = sessionIdRef.current;
+                  if (sid) uploadData(sid, [aggregateMinute(m)]).catch(() => {});
+                  minuteRef.current = { key, scores: [r.score], danger: r.riskLevel === 'SUSPECTED' ? 1 : 0 };
+                } else {
+                  if (!m.key) m.key = key;
+                  m.scores.push(r.score);
+                  if (r.riskLevel === 'SUSPECTED') m.danger += 1;
+                }
+              }
             } else if (r.activityState === 'STATIONARY') {
               setResult({ activityState: 'STATIONARY' });
               setStatus('정지 · 보행 대기');
@@ -104,7 +145,7 @@ export default function ElderMeasure() {
     const a = accRef.current;
     const n = a.scores.length;
     const avg = (arr) => Math.round(arr.reduce((x, y) => x + y, 0) / arr.length);
-    sessionStore.set(n > 0 ? {
+    const summary = n > 0 ? {
       windows: n,
       avgScore: avg(a.scores),
       minScore: Math.round(Math.min(...a.scores)),
@@ -113,7 +154,27 @@ export default function ElderMeasure() {
       suspectedRatio: Math.round((a.suspected / n) * 100),
       riskLevel: (a.suspected / n) > 0.3 ? 'SUSPECTED' : 'NORMAL',
       at: Date.now(),
-    } : null);
+    } : null;
+    sessionStore.set(summary);
+
+    // 백엔드 마무리: 잔여 분 데이터 → 종료 → 분석 결과. 실패해도 결과 화면은 이동.
+    const sid = sessionIdRef.current;
+    if (useBackend && sid && summary) {
+      (async () => {
+        const m = minuteRef.current;
+        if (m.scores.length) await uploadData(sid, [aggregateMinute(m)]);
+        await stopSession(sid);
+        await uploadAnalysis(sid, {
+          riskLevel: summary.riskLevel,
+          avgScore: summary.avgScore,
+          minScore: summary.minScore,
+          maxScore: summary.maxScore,
+          dangerCount: a.suspected,
+          reportSummary: null,
+        });
+      })().catch(() => {});
+    }
+
     router.push('/(elder)/result');
   };
 
