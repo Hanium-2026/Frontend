@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { authStore } from '../../store/authStore';
+import { sendSms } from '../../api/auth';
+import { ApiError } from '../../api/client';
 
-function StepBar({ step, total = 5 }) {
+const PHONE_RE = /^01[016789]\d{7,8}$/;
+
+function StepBar({ step, total = 6 }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
       {Array.from({ length: total }).map((_, i) => (
@@ -23,6 +27,7 @@ const fmt = (d) => {
 export default function AuthPhone() {
   const router = useRouter();
   const [digits, setDigits] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const handleKey = (k) => {
     if (k === '⌫') {
@@ -32,9 +37,23 @@ export default function AuthPhone() {
     }
   };
 
-  const handleNext = () => {
-    authStore.set({ phone: digits });
-    router.push('/(auth)/otp');
+  const handleNext = async () => {
+    if (busy) return;
+    if (!PHONE_RE.test(digits)) {
+      Alert.alert('전화번호 확인', '올바른 전화번호를 입력해주세요.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await sendSms(digits, 'SIGNUP');
+      authStore.set({ phone: digits });
+      router.push('/(auth)/otp');
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '인증번호 발송에 실패했어요. 다시 시도해주세요.';
+      Alert.alert('발송 실패', msg);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -78,8 +97,10 @@ export default function AuthPhone() {
       </View>
 
       <View style={{ padding: 20, paddingBottom: 36 }}>
-        <Pressable onPress={handleNext} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>인증번호 받기</Text>
+        <Pressable onPress={handleNext} disabled={busy} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.7 : 1 }}>
+          {busy
+            ? <ActivityIndicator color="#fff"/>
+            : <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>인증번호 받기</Text>}
         </Pressable>
       </View>
     </View>

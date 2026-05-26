@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { authStore } from '../../store/authStore';
+import { sendSms, verifySms } from '../../api/auth';
+import { ApiError } from '../../api/client';
 
-function StepBar({ step, total = 5 }) {
+function StepBar({ step, total = 6 }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
       {Array.from({ length: total }).map((_, i) => (
@@ -28,8 +30,35 @@ export default function AuthOTP() {
   const router = useRouter();
   const [otp, setOtp] = useState('');
   const [secs, setSecs] = useState(180);
+  const [busy, setBusy] = useState(false);
   const timerRef = useRef(null);
   const phone = authStore.get().phone;
+
+  const verify = async (code) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await verifySms(phone, code, 'SIGNUP');
+      router.push('/(auth)/profile');
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '인증에 실패했어요. 다시 시도해주세요.';
+      Alert.alert('인증 실패', msg);
+      setOtp('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resend = async () => {
+    try {
+      await sendSms(phone, 'SIGNUP');
+      setOtp('');
+      startTimer();
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '재발송에 실패했어요.';
+      Alert.alert('재발송 실패', msg);
+    }
+  };
 
   const startTimer = () => {
     clearInterval(timerRef.current);
@@ -48,8 +77,8 @@ export default function AuthOTP() {
   }, []);
 
   useEffect(() => {
-    if (otp.length === 6) {
-      const t = setTimeout(() => router.push('/(auth)/profile'), 250);
+    if (otp.length === 6 && !busy) {
+      const t = setTimeout(() => verify(otp), 250);
       return () => clearTimeout(t);
     }
   }, [otp]);
@@ -110,7 +139,7 @@ export default function AuthOTP() {
             <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted }}>번호 변경</Text>
           </Pressable>
           <View style={{ width: 1, backgroundColor: T.line }}/>
-          <Pressable onPress={() => { setOtp(''); startTimer(); }} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
+          <Pressable onPress={resend} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
             <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: T.blue }}>다시 받기</Text>
           </Pressable>
         </View>
@@ -128,8 +157,10 @@ export default function AuthOTP() {
       </View>
 
       <View style={{ padding: 20, paddingBottom: 36 }}>
-        <Pressable onPress={() => router.push('/(auth)/profile')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>확인</Text>
+        <Pressable onPress={() => verify(otp)} disabled={otp.length !== 6 || busy} style={{ height: 58, borderRadius: 14, backgroundColor: otp.length === 6 ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
+          {busy
+            ? <ActivityIndicator color="#fff"/>
+            : <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: otp.length === 6 ? '#fff' : T.muted }}>확인</Text>}
         </Pressable>
       </View>
     </View>

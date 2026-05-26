@@ -2,6 +2,7 @@ import { Redirect } from 'expo-router';
 import { Platform, View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../src/tokens';
+import { tokenStore } from '../src/store/tokenStore';
 
 function WebLanding() {
   const router = useRouter();
@@ -38,5 +39,8 @@ function WebLanding() {
 
 export default function Index() {
   if (Platform.OS === 'web') return <WebLanding />;
+  if (tokenStore.isLoggedIn()) {
+    return <Redirect href={tokenStore.getRole() === 'GUARDIAN' ? '/(caregiver)/' : '/(elder)/'}/>;
+  }
   return <Redirect href="/(auth)/"/>;
 }

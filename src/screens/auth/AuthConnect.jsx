@@ -5,7 +5,7 @@ import T from '../../tokens';
 import Icon from '../../icons';
 import Avatar from '../../components/Avatar';
 
-function StepBar({ step, total = 5 }) {
+function StepBar({ step, total = 6 }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
       {Array.from({ length: total }).map((_, i) => (
@@ -33,7 +33,7 @@ export default function AuthConnect() {
         <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
           <Icon.arrowLeft width={18} height={18} color={T.ink}/>
         </Pressable>
-        <StepBar step={5}/>
+        <StepBar step={6}/>
       </View>
 
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 24 }}>

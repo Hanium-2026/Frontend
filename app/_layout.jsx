@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Platform } from 'react-native';
+import { tokenStore } from '../src/store/tokenStore';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,11 +18,19 @@ export default function RootLayout() {
     'Pretendard-ExtraBold': require('../assets/fonts/Pretendard-ExtraBold.otf'),
   });
 
+  // 저장된 토큰을 메모리로 로드 — 라우팅/요청 전에 완료돼야 함.
+  const [sessionLoaded, setSessionLoaded] = useState(false);
   useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
+    tokenStore.load().finally(() => setSessionLoaded(true));
+  }, []);
 
-  if (!loaded) return <View style={{ flex: 1, backgroundColor: '#fff' }}/>;
+  const ready = loaded && sessionLoaded;
+
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return <View style={{ flex: 1, backgroundColor: '#fff' }}/>;
 
   const stack = (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true, animationTypeForReplace: 'push' }}>
