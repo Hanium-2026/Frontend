@@ -1,21 +1,51 @@
-﻿import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
+import * as Location from 'expo-location';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
 import SectionLabel from '../../components/SectionLabel';
 import AppHeader from '../../components/AppHeader';
-
-const contacts = [
-  { i: 'family', t: '딸 민지',   s: '010-1234-5678',     on: true },
-  { i: 'family', t: '아들 현우', s: '010-9876-5432',     on: true },
-  { i: 'phone',  t: '119 응급 신고', s: '위치와 함께 전송', on: true },
-];
+import { getMyGuardians } from '../../api/links';
+import { uploadLocation } from '../../api/location';
+import { ApiError } from '../../api/client';
 
 export default function ElderSOS() {
   const router = useRouter();
+  const [guardians, setGuardians] = useState([]);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    getMyGuardians().then((list) => setGuardians(list ?? [])).catch(() => setGuardians([]));
+  }, []);
+
+  const contacts = [
+    ...guardians.map((g) => ({ i: 'family', t: g.name || '보호자', s: '연결된 보호자', on: true })),
+    { i: 'phone', t: '119 응급 신고', s: '위치와 함께 전송', on: true },
+  ];
+
+  const sendEmergencyLocation = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('위치 권한 필요', '비상 알림에 현재 위치를 포함하려면 위치 권한이 필요합니다.');
+        return;
+      }
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      await uploadLocation(current.coords.latitude, current.coords.longitude);
+      Alert.alert('전송 완료', '현재 위치가 보호자 위치 화면으로 전송되었습니다.');
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '위치 전송에 실패했어요.';
+      Alert.alert('전송 실패', msg);
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#FCE0E0' }}>
       <AppHeader
@@ -32,13 +62,16 @@ export default function ElderSOS() {
       <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         <View style={{ alignItems: 'center', marginTop: 18 }}>
           <View style={{ width: 232, height: 232, alignItems: 'center', justifyContent: 'center' }}>
-            {/* pulse rings */}
             <View style={{ position: 'absolute', top: -20, left: -20, right: -20, bottom: -20, borderRadius: 136, backgroundColor: 'rgba(239,68,68,0.08)' }}/>
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 116, backgroundColor: 'rgba(239,68,68,0.15)' }}/>
-            <View style={{ position: 'absolute', top: 24, left: 24, right: 24, bottom: 24, borderRadius: 92, backgroundColor: T.danger, alignItems: 'center', justifyContent: 'center', shadowColor: T.danger, shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.45, shadowRadius: 40, elevation: 20 }}>
-              <Text style={{ fontSize: 52, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -2, lineHeight: 52 }}>SOS</Text>
-              <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#fff', marginTop: 6 }}>꾹 눌러서 전송</Text>
-            </View>
+            <Pressable
+              onLongPress={sendEmergencyLocation}
+              delayLongPress={900}
+              disabled={sending}
+              style={{ position: 'absolute', top: 24, left: 24, right: 24, bottom: 24, borderRadius: 92, backgroundColor: T.danger, alignItems: 'center', justifyContent: 'center', shadowColor: T.danger, shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.45, shadowRadius: 40, elevation: 20 }}>
+              {sending ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: 52, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -2, lineHeight: 52 }}>SOS</Text>}
+              <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#fff', marginTop: 6 }}>{sending ? '전송 중' : '꾹 눌러서 전송'}</Text>
+            </Pressable>
             <Svg width={232} height={232} viewBox="0 0 232 232" style={{ position: 'absolute' }}>
               <Circle cx="116" cy="116" r="92" stroke={T.danger} strokeWidth="3" fill="none"
                 strokeLinecap="round" strokeDasharray="578" strokeDashoffset="160"
@@ -46,8 +79,8 @@ export default function ElderSOS() {
             </Svg>
           </View>
           <Text style={{ marginTop: 20, fontSize: 14, color: T.muted, textAlign: 'center', lineHeight: 22, paddingHorizontal: 32 }}>
-            <Text style={{ color: T.danger, fontFamily: T.fontBold }}>5초 후 자동 전송</Text>됩니다.{'\n'}
-            연결된 가족과 119에 알림이 전달돼요.
+            <Text style={{ color: T.danger, fontFamily: T.fontBold }}>길게 누르면 위치가 전송</Text>됩니다.{'\n'}
+            보호자 위치 화면에서 최신 위치를 확인할 수 있어요.
           </Text>
         </View>
 

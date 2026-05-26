@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import Svg, { G, Line, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import T from '../../tokens';
@@ -9,6 +9,8 @@ import SectionLabel from '../../components/SectionLabel';
 import Pill from '../../components/Pill';
 import Avatar from '../../components/Avatar';
 import { getGuardianDailyReport } from '../../api/reports';
+import { disconnectWard } from '../../api/links';
+import { ApiError } from '../../api/client';
 
 const round = (n) => (n == null ? 0 : Math.round(n));
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -32,6 +34,22 @@ export default function CarePatientDetail() {
       .catch(() => setData(null))
       .finally(() => setLoading(false));
   }, [wardId, days]);
+
+  const handleDisconnect = () => {
+    if (!wardId) return;
+    Alert.alert('연결 해제', `${name}님과의 보호자 연결을 해제할까요?`, [
+      { text: '취소', style: 'cancel' },
+      { text: '해제', style: 'destructive', onPress: async () => {
+        try {
+          await disconnectWard(wardId);
+          router.replace('/(caregiver)/');
+        } catch (e) {
+          const msg = e instanceof ApiError ? e.message : '연결 해제에 실패했어요.';
+          Alert.alert('해제 실패', msg);
+        }
+      } },
+    ]);
+  };
 
   const daily = data?.dailyScores ?? [];
   const tm = data?.todayMetrics ?? null;
@@ -156,6 +174,12 @@ export default function CarePatientDetail() {
               </View>
             </View>
           )}
+
+          <View style={{ paddingHorizontal: 16, marginTop: 18, paddingBottom: 20 }}>
+            <Pressable onPress={handleDisconnect} style={{ height: 48, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.danger }}>연결 해제</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       )}
     </View>

@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -121,7 +121,10 @@ export default function ElderHistory() {
                 {records.map((r, i) => {
                   const I = Icon[r.icon];
                   return (
-                    <View key={r.key} style={{
+                    <Pressable
+                      key={r.key}
+                      onPress={() => router.push({ pathname: '/(elder)/session-detail', params: { sessionId: String(r.key) } })}
+                      style={{
                       flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16,
                       borderBottomWidth: i < records.length - 1 ? 1 : 0, borderBottomColor: T.line,
                     }}>
@@ -140,7 +143,7 @@ export default function ElderHistory() {
                         <Text style={{ fontSize: 18, fontFamily: T.fontExtraBold, color: T.ink }}>{r.s}</Text>
                         <Pill tone={r.t} size="sm">{r.t === 'ok' ? '안정' : '주의'}</Pill>
                       </View>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </Card>

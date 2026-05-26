@@ -30,6 +30,7 @@ Expo는 버전마다 API가 자주 바뀜. 추측으로 작성 금지.
 | 그라디언트 | expo-linear-gradient |
 | 폰트 | Pretendard (expo-font 로드) |
 | 센서 | expo-sensors (가속도·자이로) |
+| 위치/실시간 | expo-location, react-native-sse |
 | 웹 빌드 | `npx expo export -p web` → dist/ |
 | 배포 | Vercel (vercel.json 완료) |
 
@@ -48,10 +49,10 @@ src/
 assets/fonts/           # Pretendard OTF 5종
 ```
 
-## 구현 완료 화면 (24개)
+## 구현 완료 화면 (29개)
 
-- **인증(9)**: AuthChoice, AuthRolePick, AuthPhone, AuthOTP, AuthProfile, AuthPermissions, AuthConnect, CareInvite, AuthWelcome
-- **노인(8)**: ElderOnboarding, ElderHome, ElderMeasure, ElderResult, ElderHistory, ElderCaregiver, ElderSOS, ElderProfile
+- **인증(12)**: AuthChoice, AuthRolePick, AuthPhone, AuthOTP, AuthProfile, AuthPassword, AuthLogin, AuthPasswordReset, AuthPermissions, AuthConnect, CareInvite, AuthWelcome
+- **노인(10)**: ElderOnboarding, ElderHome, ElderMeasure, ElderResult, ElderHistory, ElderSessionDetail, ElderCaregiver, ElderSOS, ElderProfile, ElderProfileEdit
 - **보호자(7)**: CareDashboard, CarePatientDetail, CareAlerts, CareAnalysis, CareReport, CareLocation, CareNotifSettings
 
 ---
@@ -208,6 +209,15 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 - 모델 한계: MobiAct(Galaxy S3) 학습 → 도메인 갭. 절대값보다 상대 변화로 해석.
 - 현재 `API_BASE = http://172.20.10.4:8000` (노트북 IP 바뀌면 수정). 폰·노트북 같은 WiFi 필요.
 
+### AI 모델 파이프라인 계획 (2026-05-26)
+- 1차: **동작 분류 모델**로 현재 상태를 분류한다. 입력 IMU → walking/running/sitting/standing/upstairs/downstairs.
+- 2차: walking 구간에 대해서 **정상 보행 vs 이상 보행**을 판정한다.
+- 3차: 이상 보행으로 판정된 구간을 **이상 유형별**로 세분화한다. 예: 불안정/비대칭/낙상 의심/계단 위험 등. 최종 유형 taxonomy는 데이터셋과 백엔드 enum 확장 가능성을 보고 확정.
+- 새로 받은 `hugadb_output`은 **1차 동작 분류 모델 산출물**이다. 원본 위치: `C:\Users\sun07\OneDrive\바탕 화면\hugadb_output\hugadb_output`, 프로젝트 복사본: `models/hugadb`.
+- HuGaDB 모델 입력은 `(1, 100, 10)`이며 피처 순서는 `acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_x_dyn, acc_y_dyn, acc_z_dyn, acc_norm`.
+- 앱의 현재 `/score` 입력은 128샘플×6피처이므로, 모델 적용 전 서버에서 100샘플 선택/리샘플, 10피처 생성, `scaler_params.json` 정규화를 수행해야 한다.
+- 현재 `scripts/nevo_score_server.py`는 `models/hugadb/best_model.tflite` + `scaler_params.json`으로 1차 동작분류를 수행한다. 런타임은 `ai-edge-litert`를 우선 사용하며, 응답에는 기존 앱 계약(`activityState`, `score`, `riskLevel`, `cadence`)과 함께 `activityClass`, `activityConfidence`, `activityProbabilities`, `modelLoaded`, `modelRuntime`, `abnormalType`이 포함된다. Expo 센서값은 HuGaDB raw int16 스케일에 맞춰 `acc(g) * 16384`, `gyro(rad/s) * 938.734`로 변환한 뒤 scaler를 적용한다. 2차 정상/이상 보행 모델이 아직 없으므로 `score`는 임시로 기존 휴리스틱(`scoreSource=heuristic-until-gait-stage2`)을 유지한다.
+
 ---
 
 ## 주요 결정사항
@@ -219,21 +229,30 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 | 2026-05-26 | Backend develop 클론 후 실제 API 전수 분석 완료. Backend 코드 수정 금지 원칙 확정 |
 | 2026-05-26 | 보호자 대시보드에서 "새 노약자 추가"로 코드 입력 연동 가능하도록 동선 추가 |
 | 2026-05-26 | 노약자 홈 가족 카드가 실제 보호자 연결 상태(`/ward-link/guardians`)를 표시하도록 연동 |
+| 2026-05-26 | 프로필 수정/탈퇴, 보호자 연결 해제, 비밀번호 재설정, 세션 상세, 위치 업로드/SSE 화면 연동 |
+| 2026-05-26 | AI 파이프라인 방향 확정: 1차 동작분류(HuGaDB) → 2차 정상/이상 보행 → 3차 이상 유형 분류 |
+| 2026-05-26 | HuGaDB 1차 동작분류 모델 자산을 `models/hugadb`에 복사하고 `/score` 서버에 TFLite 추론 경로 추가. 현재 노트북은 `ai-edge-litert==2.1.5`로 모델 로드 가능 |
+| 2026-05-26 | Wi-Fi 변경 후 AI 서버 주소를 `172.20.10.4:8000`으로 갱신하고, 측정 화면에 1차 동작분류(`activityClass` + confidence) 표시 추가 |
+| 2026-05-26 | `upstairs 91%` 고정 원인 확인: Expo `g/rad/s` 값을 HuGaDB raw scaler에 그대로 넣은 단위 불일치. HuGaDB int16 범위 기준 변환(`acc * 16384`, `gyro * 938.734`) 적용 |
 
 ---
 
 ## 작업 진행도 (연동)
 
 - [x] AI 추론 서버 연동 (초안)
+- [x] **HuGaDB 동작분류 모델 적용** — `models/hugadb/best_model.tflite` + `scaler_params.json`을 `/score` 서버에 적용. 현재 앱 입력(128×6)을 모델 입력(100×10)으로 변환하고, HuGaDB raw int16 스케일 변환 후 `acc_dyn`/`acc_norm` 피처 생성 및 scaler 정규화. `requirements-ai.txt`에 `ai-edge-litert` 런타임 기록.
+  - `ElderMeasure` 측정 화면에 `동작` 카드 추가: walking/running/sitting/standing/upstairs/downstairs 라벨과 confidence 표시.
 - [x] **프론트 API 레이어 토대** (2026-05-26) — `src/store/storage.js`(secure-store+웹 폴백 기본단위), `src/store/tokenStore.js`(access/refresh/role 메모리캐시+영속), `src/api/client.js`(`BACKEND_BASE`, Bearer 자동주입, 401→refresh 1회 재시도, `{data}` 언랩, `ApiError`).
 - [x] **인증 플로우 ↔ `/api/auth` 연동** (2026-05-26) — `src/api/auth.js`(sendSms/verifySms/signUp/login/logout/passwordReset + `getDeviceId` 영속). 라이브 백엔드로 signup→login→users/me→physical-info 전수 검증 완료. 웹 번들 컴파일 OK.
   - 신규 화면: `AuthPassword`(가입 비번 설정 → `signUp()` 호출), `AuthLogin`(전화+비번 로그인). 라우트 `app/(auth)/password.jsx`, `login.jsx`.
+  - 신규 화면: `AuthPasswordReset`(비밀번호 재설정 요청→OTP 검증→새 비밀번호 저장). 라우트 `app/(auth)/password-reset.jsx`.
   - 가입 플로우: role→phone(sendSms)→otp(verifySms)→profile→password(signUp)→permissions→connect. StepBar 6단계로 변경.
   - 앱 시작: `_layout`에서 `tokenStore.load()`, `app/index.jsx`가 로그인+role로 라우팅(WARD→elder, GUARDIAN→caregiver).
   - **⚠️ 백엔드 검증 주의(코드 분석으로 확인)**: WARD 회원가입은 height·weight·birthDate·gender **모두 필수**(DTO엔 @NotNull 없지만 `AuthService`가 검증). 약관은 TERMS·PRIVACY agreed=true 필수. signup 실패 시 OTP 인증상태 소비됨 → 재시도 시 OTP 재발급 필요.
   - 미해결: AuthProfile은 birthYear만 수집 → birthDate를 `YYYY-01-01`로 보냄(월/일 임시). 연동 데모용 OTP는 백엔드 콘솔 로그 확인.
 - [x] **측정 세션 ↔ `/api/gait/sessions` 연동** (2026-05-26) — `src/api/session.js`(start/active/ensureSession/data/stop/analysis + `toMinuteAt` 로컬 분 키). `ElderMeasure`: 진입 시 `ensureSession`(404→start), AI 윈도우 점수를 분당 집계(avg/min/max/dangerCount)해 `/data` 업로드, 정지 시 잔여 `/data`→`/stop`→`/analysis`. **로그인 WARD만 연동**(아니면 AI 측정만, graceful degrade). 라이브 백엔드로 start→active→data→stop→analysis→report 전수 검증. 점수 계산은 여전히 AI 추론 서버(:8000), 백엔드엔 집계만 전송.
 - [x] **리포트/대시보드 조회 연동** (2026-05-26) — `src/api/reports.js`(getDailyReport/getGuardianDailyReport/getDashboard/getSessionReport). `ElderHistory`→`/reports/daily`(7일 바차트+세션목록), `CareDashboard`→`/reports/dashboard`(동적 타일/카드, 탭 시 wardId·name 파라미터 전달), `CarePatientDetail`→`/reports/ward/{id}/daily`(기간 7/30/90 선택, todayMetrics 지표). 라이브 백엔드로 WARD daily + 연동 GUARDIAN dashboard/ward-daily 검증. 모두 로딩/빈 상태 처리.
+  - `ElderSessionDetail` 추가: `ElderHistory` 세션 탭 → `/reports/{sessionId}` 단건 상세 조회.
   - **톤 매핑**: 백엔드 riskLevel은 NORMAL/SUSPECTED 2단계뿐 → UI 3단계(ok/caution/danger)는 latestScore<50=danger, SUSPECTED=caution, else ok로 산출.
   - **필드 공백**: CarePatientDetail의 이동거리/속도 등은 백엔드에 없음 → 평균/범위/대칭/변동성/측정·위험 횟수로 대체. symmetryScore는 analysis가 asymmetryScore 보낼 때만 채워짐(현재 null 가능).
 - [x] **가족연동/프로필/알림 연동** (2026-05-26):
@@ -243,10 +262,12 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
   - **CareInvite**(GUARDIAN): 코드 표시→**입력**으로 변경, `/ward-link` 연결 (백엔드 모델=보호자가 코드 입력).
   - **CareDashboard**(GUARDIAN): 로그인 후에도 `새 노약자 추가` 버튼으로 코드 입력 화면 진입 가능. 연결 성공 시 보호자 대시보드로 복귀.
   - **ElderProfile**: `/users/me` + `/wards/me/physical-info` 실제 표시 + 로그아웃(`logout()`→`/(auth)/`).
+  - **ElderProfileEdit**: `PUT /users/me`, `PUT /wards/me/physical-info`로 이름/신체정보 수정. `DELETE /users/me` 회원 탈퇴 버튼 연결.
+  - **CarePatientDetail**: `DELETE /ward-link/{wardId}` 연결 해제 버튼 연결.
   - **CareAlerts**: 연동 노약자별 `/ward-link/{id}/alerts` 병합·시간순 정렬. AlertType은 `STROKE_DANGER` 한 종류.
   - 라이브 백엔드로 me/physical-info/guardians/wards/alerts/device-token 전수 검증.
   - **AuthConnect(노약자 가입 중 코드입력 화면)는 미연동**: 백엔드는 WARD가 코드를 *생성*하는 모델이라 "WARD가 코드 입력"은 존재X. 실제 연동은 ElderCaregiver에서 함. 가입 플로우의 AuthConnect는 건너뛰기 단계로 유지.
-- [ ] **위치(CareLocation) 미완**: `/api/locations/stream/{wardId}` SSE가 JWT 인증 필요 → 표준 EventSource는 헤더 못 보냄(웹 불가), 네이티브는 헤더지원 SSE(react-native-sse) 필요. 실시간 지도엔 지도 라이브러리도 필요. `location.js`만 만들어둠.
+- [x] **위치 기본 연동** (2026-05-26) — `expo-location` + `react-native-sse` 추가. `ElderSOS` 길게 누르기 → 현재 위치 권한 요청 후 `POST /api/locations`. `CareLocation` → `/ward-link/wards`로 대상 선택 후 `GET /api/locations/stream/{wardId}` SSE 구독(Authorization 헤더 포함), 최신 좌표/수신 상태 표시. 지도는 아직 정적 SVG 배경(실지도 라이브러리 미적용).
 - [ ] **FCM 푸시 미완**: Expo Go 원격푸시 미지원 + 백엔드가 Firebase FCM 토큰 요구 → dev build + google-services.json 필요. `updateDeviceToken()` 함수는 준비됨(등록 검증 완료), 실제 토큰 획득은 dev build 이후.
 - [ ] SQLite 로컬 저장 (expo-sqlite, 오프라인 대비)
 - [ ] Vercel 실제 배포

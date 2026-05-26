@@ -9,9 +9,10 @@ import Pill from '../../components/Pill';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
-import { getMe } from '../../api/user';
+import { deleteAccount, getMe } from '../../api/user';
 import { getPhysicalInfo } from '../../api/ward';
 import { logout } from '../../api/auth';
+import { tokenStore } from '../../store/tokenStore';
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
@@ -68,9 +69,30 @@ export default function ElderProfile() {
     ]);
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert('회원 탈퇴', '계정을 탈퇴하면 다시 복구할 수 없어요. 계속할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '탈퇴', style: 'destructive', onPress: async () => {
+        try {
+          await deleteAccount();
+        } finally {
+          await tokenStore.clear();
+          router.replace('/(auth)/');
+        }
+      } },
+    ]);
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader title="내 정보"/>
+      <AppHeader
+        title="내 정보"
+        right={
+          <Pressable onPress={() => router.push('/(elder)/profile-edit')} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 12, fontFamily: T.fontBold, color: T.blueDark }}>수정</Text>
+          </Pressable>
+        }
+      />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         <View style={{ paddingHorizontal: 16 }}>
@@ -144,6 +166,9 @@ export default function ElderProfile() {
 
           <Pressable onPress={handleLogout} style={{ marginTop: 16, paddingVertical: 16, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line, alignItems: 'center' }}>
             <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.danger }}>로그아웃</Text>
+          </Pressable>
+          <Pressable onPress={handleDeleteAccount} style={{ marginTop: 10, paddingVertical: 14, alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>회원 탈퇴</Text>
           </Pressable>
         </View>
       </ScrollView>
