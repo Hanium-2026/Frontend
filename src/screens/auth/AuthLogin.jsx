@@ -68,6 +68,10 @@ export default function AuthLogin() {
               returnKeyType="go"
             />
           </View>
+
+          <Pressable onPress={() => router.push('/(auth)/password-reset')} style={{ marginTop: 16, alignItems: 'flex-end', paddingVertical: 8 }}>
+            <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.blue }}>비밀번호를 잊으셨나요?</Text>
+          </Pressable>
         </ScrollView>
 
         <View style={{ padding: 20, paddingBottom: 36 }}>

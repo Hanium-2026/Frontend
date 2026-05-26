@@ -24,6 +24,26 @@ const aggregateMinute = (m) => ({
   dangerCount: m.danger,
 });
 
+const ACTIVITY_LABELS = {
+  downstairs: '계단 내려감',
+  running: '뛰기',
+  sitting: '앉음',
+  standing: '서 있음',
+  upstairs: '계단 오름',
+  walking: '걷기',
+  stationary: '정지',
+};
+
+const formatActivity = (result) => {
+  const activity = result?.activityClass;
+  if (!activity) return '대기';
+  const label = ACTIVITY_LABELS[activity] ?? activity;
+  const confidence = typeof result?.activityConfidence === 'number'
+    ? ` ${Math.round(result.activityConfidence * 100)}%`
+    : '';
+  return `${label}${confidence}`;
+};
+
 export default function ElderMeasure() {
   const router = useRouter();
 
@@ -126,18 +146,20 @@ export default function ElderMeasure() {
 
   const stationary = result?.activityState === 'STATIONARY';
   const suspected = result?.riskLevel === 'SUSPECTED';
+  const activity = result?.activityClass;
+  const nonWalkingLocomotion = ['downstairs', 'running', 'upstairs'].includes(activity);
   const accent = stationary ? '#9DB2D4' : suspected ? '#FF6B6B' : '#5EEAD4';
   const score = stationary ? null : result?.score;
   const circ = 666;
   const offset = score != null ? circ * (1 - score / 100) : circ * 0.999;
 
   const centerText = stationary ? '걸으면 측정이 시작돼요'
-    : result?.score != null ? (suspected ? '이상 보행 의심' : '정상 보행')
+    : result?.score != null ? (nonWalkingLocomotion ? `${ACTIVITY_LABELS[activity]} 감지` : suspected ? '이상 보행 의심' : '정상 보행')
     : '걸음 데이터 수집 중';
 
   const stats = [
+    ['동작', formatActivity(result), ''],
     ['케이던스', (!stationary && result?.cadence != null) ? String(result.cadence) : '—', '/분'],
-    ['비율', (!stationary && result?.ratio != null) ? `${result.ratio.toFixed(2)}x` : '—', ''],
     ['구간', String(count), '회'],
   ];
 
@@ -234,7 +256,7 @@ export default function ElderMeasure() {
             <View key={k} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }}>
               <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontFamily: T.fontSemiBold }}>{l}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 4 }}>
-                <Text style={{ fontSize: 20, fontFamily: T.fontExtraBold, color: '#fff' }}>{v}</Text>
+                <Text style={{ fontSize: String(v).length > 7 ? 14 : 20, fontFamily: T.fontExtraBold, color: '#fff' }}>{v}</Text>
                 <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginBottom: 2 }}>{s}</Text>
               </View>
             </View>
