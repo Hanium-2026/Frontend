@@ -43,6 +43,11 @@ export default function CareDashboard() {
   const [loading, setLoading] = useState(true);
   const [wards, setWards] = useState([]);
 
+  const goInvite = () => router.push({
+    pathname: '/(caregiver)/invite',
+    params: { returnTo: 'caregiver' },
+  });
+
   useEffect(() => {
     getDashboard()
       .then((d) => setWards(d?.wards ?? []))
@@ -65,6 +70,9 @@ export default function CareDashboard() {
             <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, marginTop: 2 }}>가족 보행 상태</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable onPress={goInvite} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.plus width={19} height={19} color="#fff"/>
+            </Pressable>
             <Pressable style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
               <Icon.bell width={18} height={18} color={T.body}/>
               <View style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: T.danger, borderWidth: 1.5, borderColor: '#fff' }}/>
@@ -96,6 +104,10 @@ export default function CareDashboard() {
           <View style={{ paddingTop: 80, paddingHorizontal: 32, alignItems: 'center' }}>
             <Icon.family width={40} height={40} color={T.line}/>
             <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center' }}>연동된 가족이 없어요.{'\n'}노약자 앱에서 발급한 코드로 연결해 주세요.</Text>
+            <Pressable onPress={goInvite} style={{ marginTop: 18, height: 46, paddingHorizontal: 18, borderRadius: 14, backgroundColor: T.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <Icon.plus width={17} height={17} color="#fff"/>
+              <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: '#fff' }}>새 노약자 추가</Text>
+            </Pressable>
           </View>
         ) : (
           <>
@@ -117,7 +129,13 @@ export default function CareDashboard() {
 
             {/* patient cards */}
             <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
-              <SectionLabel>돌보는 가족</SectionLabel>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <SectionLabel>돌보는 가족</SectionLabel>
+                <Pressable onPress={goInvite} style={{ marginBottom: 8, paddingHorizontal: 10, height: 30, borderRadius: 10, backgroundColor: T.blueSoft, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Icon.plus width={14} height={14} color={T.blueDark}/>
+                  <Text style={{ fontSize: 12, fontFamily: T.fontBold, color: T.blueDark }}>추가</Text>
+                </Pressable>
+              </View>
               <View style={{ gap: 10 }}>
                 {enriched.map((w) => {
                   const spark = (w.trend ?? []).filter((v) => v != null).map((v) => Math.round(v));

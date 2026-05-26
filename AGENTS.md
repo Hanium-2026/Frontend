@@ -206,7 +206,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 - ElderMeasure에서 ~1.3초마다 호출, 정지 시 세션 요약 → ElderResult
 - **구조**: 추론 서버가 실시간 점수 생성 → 그 결과를 위 **세션 API**(8080)로 업로드
 - 모델 한계: MobiAct(Galaxy S3) 학습 → 도메인 갭. 절대값보다 상대 변화로 해석.
-- 현재 `API_BASE = http://172.30.1.24:8000` (노트북 IP 바뀌면 수정). 폰·노트북 같은 WiFi 필요.
+- 현재 `API_BASE = http://172.20.10.4:8000` (노트북 IP 바뀌면 수정). 폰·노트북 같은 WiFi 필요.
 
 ---
 
@@ -217,6 +217,8 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 | 2026-05-21 | 보폭 → 이동 거리로 전체 교체 (6개 파일) |
 | 2026-05-21 | 측정 화면을 nevo-ai 추론 서버(`:8000/score`)에 초안 연동 |
 | 2026-05-26 | Backend develop 클론 후 실제 API 전수 분석 완료. Backend 코드 수정 금지 원칙 확정 |
+| 2026-05-26 | 보호자 대시보드에서 "새 노약자 추가"로 코드 입력 연동 가능하도록 동선 추가 |
+| 2026-05-26 | 노약자 홈 가족 카드가 실제 보호자 연결 상태(`/ward-link/guardians`)를 표시하도록 연동 |
 
 ---
 
@@ -237,7 +239,9 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 - [x] **가족연동/프로필/알림 연동** (2026-05-26):
   - `src/api/user.js`(me/updateMe/deviceToken/deleteAccount), `ward.js`(physical-info get/put), `links.js`(코드생성/연결/목록/해제/알림), `location.js`(업로드/스트림URL).
   - **ElderCaregiver**(WARD): 보호자 전화번호로 `/ward-link/code` 코드 생성 + `/ward-link/guardians` 목록.
+  - **ElderHome**(WARD): 홈 가족 카드가 `/ward-link/guardians`를 읽어 보호자 연결 없음/연결 N명 상태를 표시하고, 포커스 복귀 시 갱신.
   - **CareInvite**(GUARDIAN): 코드 표시→**입력**으로 변경, `/ward-link` 연결 (백엔드 모델=보호자가 코드 입력).
+  - **CareDashboard**(GUARDIAN): 로그인 후에도 `새 노약자 추가` 버튼으로 코드 입력 화면 진입 가능. 연결 성공 시 보호자 대시보드로 복귀.
   - **ElderProfile**: `/users/me` + `/wards/me/physical-info` 실제 표시 + 로그아웃(`logout()`→`/(auth)/`).
   - **CareAlerts**: 연동 노약자별 `/ward-link/{id}/alerts` 병합·시간순 정렬. AlertType은 `STROKE_DANGER` 한 종류.
   - 라이브 백엔드로 me/physical-info/guardians/wards/alerts/device-token 전수 검증.
