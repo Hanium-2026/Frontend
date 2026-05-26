@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { connectWard } from '../../api/links';
@@ -8,17 +8,19 @@ import { ApiError } from '../../api/client';
 
 export default function CareInvite() {
   const router = useRouter();
+  const { returnTo } = useLocalSearchParams();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
   const canSubmit = code.trim().length >= 4 && !busy;
+  const donePath = returnTo === 'caregiver' ? '/(caregiver)/' : '/(auth)/welcome';
 
   const handleConnect = async () => {
     if (!canSubmit) return;
     setBusy(true);
     try {
       await connectWard(code.trim().toUpperCase());
-      router.push('/(auth)/welcome');
+      router.replace(donePath);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : '연결에 실패했어요. 코드를 확인해주세요.';
       Alert.alert('연결 실패', msg);
@@ -61,7 +63,7 @@ export default function CareInvite() {
             />
           </View>
 
-          <Pressable onPress={() => router.push('/(auth)/welcome')} style={{ marginTop: 18, alignItems: 'center', padding: 8 }}>
+          <Pressable onPress={() => router.replace(donePath)} style={{ marginTop: 18, alignItems: 'center', padding: 8 }}>
             <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>나중에 연결할게요</Text>
           </Pressable>
         </ScrollView>
