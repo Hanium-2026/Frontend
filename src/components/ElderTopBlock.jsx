@@ -10,7 +10,7 @@ export default function ElderTopBlock({ children, minHeight = 200 }) {
         colors={[T.blue, T.blueDark]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={{ paddingTop: 54, paddingBottom: 44, paddingHorizontal: 20, minHeight }}
+        style={{ paddingTop: 54, paddingBottom: 44, paddingHorizontal: 20, minHeight, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' }}
       >
         {/* decorative blobs — clipped within gradient only */}
         <View style={{ position: 'absolute', right: -60, top: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.08)' }}/>
