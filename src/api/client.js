@@ -4,7 +4,7 @@ import { tokenStore } from '../store/tokenStore';
 
 // 폰(Expo Go)에서 접속하려면 노트북 LAN IP. 같은 WiFi 필수. IP 바뀌면 여기 수정.
 // (웹/에뮬레이터만 테스트할 땐 http://localhost:8080 으로 바꿔도 됨)
-export const BACKEND_BASE = 'http://172.20.10.4:8080';
+export const BACKEND_BASE = 'http://172.30.1.21:8080';
 
 // 인증 없이 호출하는 경로 (Authorization 헤더 미부착 + 401 갱신 시도 안 함).
 const PUBLIC_PATHS = [
