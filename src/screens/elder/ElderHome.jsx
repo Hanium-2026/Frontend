@@ -7,9 +7,14 @@ import Icon from '../../icons';
 import Card from '../../components/Card';
 import TabBar from '../../components/TabBar';
 import Avatar from '../../components/Avatar';
+import BarChart from '../../components/BarChart';
 import ElderTopBlock from '../../components/ElderTopBlock';
 import { getMe } from '../../api/user';
 import { getMyGuardians } from '../../api/links';
+import { getDailyReport } from '../../api/reports';
+
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+const roundN = (n) => (n == null ? 0 : Math.round(n));
 
 const ELDER_TABS = [
   { icon: 'home', label: '홈', path: '/(elder)/' },
@@ -23,6 +28,7 @@ export default function ElderHome() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [guardians, setGuardians] = useState([]);
+  const [daily, setDaily] = useState([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -31,9 +37,18 @@ export default function ElderHome() {
       getMyGuardians().then((list) => { if (alive) setGuardians(list ?? []); }).catch(() => {
         if (alive) setGuardians([]);
       });
+      getDailyReport().then((d) => { if (alive) setDaily(d?.dailyScores ?? []); }).catch(() => {
+        if (alive) setDaily([]);
+      });
       return () => { alive = false; };
     }, [])
   );
+
+  const trend = daily.map((d) => roundN(d.avgScore));
+  const dayLabels = daily.map((d) => WEEKDAY[new Date(d.date).getDay()]);
+  const weeklyAvg = trend.length ? roundN(trend.reduce((a, b) => a + b, 0) / trend.length) : null;
+  const todayScore = trend.length ? trend[trend.length - 1] : null;
+  const ringOffset = todayScore != null ? 238.7 * (1 - Math.max(0, Math.min(100, todayScore)) / 100) : 238.7;
 
   const metrics = [
     { i: 'steps', label: '걸음수', v: '2,840', sub: '걸음', tone: T.blue },
@@ -48,7 +63,7 @@ export default function ElderHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <ElderTopBlock minHeight={246}>
+      <ElderTopBlock minHeight={220}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
             <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: T.font }}>오늘도 함께 걸어요</Text>
@@ -66,9 +81,9 @@ export default function ElderHome() {
           <Svg width={92} height={92} viewBox="0 0 92 92">
             <Circle cx="46" cy="46" r="38" stroke="rgba(255,255,255,0.22)" strokeWidth="8" fill="none"/>
             <Circle cx="46" cy="46" r="38" stroke="#fff" strokeWidth="8" fill="none"
-              strokeLinecap="round" strokeDasharray="238.7" strokeDashoffset="50"
+              strokeLinecap="round" strokeDasharray="238.7" strokeDashoffset={ringOffset}
               transform="rotate(-90 46 46)"/>
-            <SvgText x="46" y="50" textAnchor="middle" fontSize="22" fontFamily={T.fontExtraBold} fill="#fff">79</SvgText>
+            <SvgText x="46" y="50" textAnchor="middle" fontSize="22" fontFamily={T.fontExtraBold} fill="#fff">{todayScore ?? '--'}</SvgText>
             <SvgText x="46" y="63" textAnchor="middle" fontSize="9" fontFamily={T.font} fill="#fff" opacity="0.7">/ 100</SvgText>
           </Svg>
           <View style={{ flex: 1 }}>
@@ -82,8 +97,8 @@ export default function ElderHome() {
       </ElderTopBlock>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        <View style={{ paddingHorizontal: 16, marginTop: -32 }}>
-          <Card pad={0} style={{ borderRadius: 20, shadowOpacity: 0.12, shadowOffset: { width: 0, height: 6 }, shadowRadius: 20, elevation: 8 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+          <Card pad={0} style={{ borderRadius: 20 }}>
             <View style={{ padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
                 <Icon.walk width={30} height={30} color={T.blue}/>
@@ -107,7 +122,7 @@ export default function ElderHome() {
           </Card>
         </View>
 
-        <View style={{ paddingHorizontal: 16, marginTop: 16, gap: 10 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: 14, gap: 10 }}>
           {[metrics.slice(0, 2), metrics.slice(2, 4)].map((row, ri) => (
             <View key={ri} style={{ flexDirection: 'row', gap: 10 }}>
               {row.map((m, k) => {
@@ -129,7 +144,7 @@ export default function ElderHome() {
           ))}
         </View>
 
-        <View style={{ paddingHorizontal: 16, marginTop: 10 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
           <Pressable onPress={() => router.push('/(elder)/caregiver')}>
             <Card pad={14} style={{ borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               {guardianCount > 0 ? (
@@ -157,6 +172,31 @@ export default function ElderHome() {
             </Card>
           </Pressable>
         </View>
+
+        {trend.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+            <Pressable onPress={() => router.push('/(elder)/history')}>
+              <Card pad={16} style={{ borderRadius: 18 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                  <View>
+                    <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontSemiBold, letterSpacing: 0.2 }}>이번 주 평균</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginTop: 2 }}>
+                      <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.5 }}>{weeklyAvg ?? '--'}</Text>
+                      <Text style={{ fontSize: 12, color: T.muted, marginBottom: 3 }}>점</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Text style={{ fontSize: 11.5, fontFamily: T.fontBold, color: T.blueDark }}>자세히</Text>
+                    <Icon.chevron width={12} height={12} color={T.blueDark}/>
+                  </View>
+                </View>
+                <View style={{ marginTop: 10 }}>
+                  <BarChart data={trend} width={328} height={84} color={T.blue} max={100} labels={dayLabels}/>
+                </View>
+              </Card>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
       <TabBar tabs={ELDER_TABS} active={0}/>
