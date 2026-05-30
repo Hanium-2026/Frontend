@@ -10,6 +10,7 @@ import SparkLine from '../../components/SparkLine';
 import Avatar from '../../components/Avatar';
 import TabBar from '../../components/TabBar';
 import { getDashboard } from '../../api/reports';
+import { getMe } from '../../api/user';
 
 const CARE_TABS = [
   { icon: 'home',     label: '대시보드', path: '/(caregiver)/' },
@@ -42,6 +43,7 @@ export default function CareDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [wards, setWards] = useState([]);
+  const [meName, setMeName] = useState('보호자');
 
   const goInvite = () => router.push({
     pathname: '/(caregiver)/invite',
@@ -53,6 +55,7 @@ export default function CareDashboard() {
       .then((d) => setWards(d?.wards ?? []))
       .catch(() => setWards([]))
       .finally(() => setLoading(false));
+    getMe().then((m) => m?.name && setMeName(m.name)).catch(() => {});
   }, []);
 
   const enriched = wards.map((w) => ({ ...w, tone: toneOf(w) }));
@@ -77,7 +80,9 @@ export default function CareDashboard() {
               <Icon.bell width={18} height={18} color={T.body}/>
               <View style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: T.danger, borderWidth: 1.5, borderColor: '#fff' }}/>
             </Pressable>
-            <Avatar name="민지" size={38} tone={[T.blueSoft, T.blueDark]}/>
+            <Pressable onPress={() => router.push('/(caregiver)/profile')}>
+              <Avatar name={meName} size={38} tone={[T.blueSoft, T.blueDark]}/>
+            </Pressable>
           </View>
         </View>
 
