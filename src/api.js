@@ -1,5 +1,5 @@
-// AI score server address. Use the laptop Wi-Fi IP when testing on a phone.
-export const API_BASE = 'http://172.30.1.21:8000';
+// AI score server address. Set EXPO_PUBLIC_AI_BASE in .env.local for phone tests.
+export const API_BASE = process.env.EXPO_PUBLIC_AI_BASE || 'http://localhost:8000';
 
 // Sends one IMU window and receives activity classification plus gait score.
 // samples: [[ax, ay, az, gx, gy, gz], ...]  (acc=g, gyro=rad/s)
