@@ -4,6 +4,9 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "dev:prepare": "powershell -ExecutionPolicy Bypass -File scripts/nevo-dev.ps1",
+    "dev:prepare:backend": "powershell -ExecutionPolicy Bypass -File scripts/nevo-dev.ps1 -StartBackend",
+    "dev:prepare:all": "powershell -ExecutionPolicy Bypass -File scripts/nevo-dev.ps1 -StartBackend",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"

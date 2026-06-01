@@ -121,7 +121,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 ```
 - Firebase 키 없어도 부팅됨 (FCM만 비활성, 경고 로그만). 실제 SMS 발송 안 함 — **OTP 코드는 백엔드 콘솔 로그**에 `[SMS][DEV ONLY] ... code=NNNNNN` 형태로 찍힘.
 - 회원가입/로그인/세션/리포트 전부 실테스트 가능. 재시작 시 위 3단계 반복(컨테이너는 `docker start nevo-db nevo-redis`로 재기동).
-- **물리 폰에서 테스트 시**: `src/api/client.js`의 `BACKEND_BASE`를 `localhost` → 노트북 IP로 교체 (AI 추론 서버와 동일).
+- **물리 폰에서 테스트 시**: `.\scripts\nevo-dev.ps1`로 현재 Wi-Fi IP를 감지해 `.env.local`의 `EXPO_PUBLIC_BACKEND_BASE`, `EXPO_PUBLIC_AI_BASE`를 생성한다. 코드 파일의 IP를 직접 수정하지 않는다.
 
 ### 공통 규칙
 - **Base URL**: `http://localhost:8080` (운영 도메인 교체 필요)
@@ -207,7 +207,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 - ElderMeasure에서 ~1.3초마다 호출, 정지 시 세션 요약 → ElderResult
 - **구조**: 추론 서버가 실시간 점수 생성 → 그 결과를 위 **세션 API**(8080)로 업로드
 - 모델 한계: MobiAct(Galaxy S3) 학습 → 도메인 갭. 절대값보다 상대 변화로 해석.
-- 현재 `API_BASE = http://172.20.10.4:8000` (노트북 IP 바뀌면 수정). 폰·노트북 같은 WiFi 필요.
+- 현재 AI 서버 주소는 `.env.local`의 `EXPO_PUBLIC_AI_BASE`로 주입한다. 폰·노트북 같은 WiFi 필요.
 
 ### AI 모델 파이프라인 계획 (2026-05-26)
 - 1차: **동작 분류 모델**로 현재 상태를 분류한다. 입력 IMU → walking/running/sitting/standing/upstairs/downstairs.
@@ -234,6 +234,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 | 2026-05-26 | HuGaDB 1차 동작분류 모델 자산을 `models/hugadb`에 복사하고 `/score` 서버에 TFLite 추론 경로 추가. 현재 노트북은 `ai-edge-litert==2.1.5`로 모델 로드 가능 |
 | 2026-05-26 | Wi-Fi 변경 후 AI 서버 주소를 `172.20.10.4:8000`으로 갱신하고, 측정 화면에 1차 동작분류(`activityClass` + confidence) 표시 추가 |
 | 2026-05-26 | `upstairs 91%` 고정 원인 확인: Expo `g/rad/s` 값을 HuGaDB raw scaler에 그대로 넣은 단위 불일치. HuGaDB int16 범위 기준 변환(`acc * 16384`, `gyro * 938.734`) 적용 |
+| 2026-06-01 | 다른 PC Expo Go 테스트를 쉽게 하기 위해 하드코딩 IP를 Expo `EXPO_PUBLIC_*` 환경변수로 전환하고, `scripts/nevo-dev.ps1` + `docs/LOCAL_TESTING.md` 추가. `-StartBackend` 실행 시 AI 서버도 자동 실행 |
 
 ---
 
@@ -268,6 +269,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
   - 라이브 백엔드로 me/physical-info/guardians/wards/alerts/device-token 전수 검증.
   - **AuthConnect(노약자 가입 중 코드입력 화면)는 미연동**: 백엔드는 WARD가 코드를 *생성*하는 모델이라 "WARD가 코드 입력"은 존재X. 실제 연동은 ElderCaregiver에서 함. 가입 플로우의 AuthConnect는 건너뛰기 단계로 유지.
 - [x] **위치 기본 연동** (2026-05-26) — `expo-location` + `react-native-sse` 추가. `ElderSOS` 길게 누르기 → 현재 위치 권한 요청 후 `POST /api/locations`. `CareLocation` → `/ward-link/wards`로 대상 선택 후 `GET /api/locations/stream/{wardId}` SSE 구독(Authorization 헤더 포함), 최신 좌표/수신 상태 표시. 지도는 아직 정적 SVG 배경(실지도 라이브러리 미적용).
+- [x] **다른 PC 로컬 테스트 자동화** (2026-06-01) — `src/api.js`, `src/api/client.js`의 하드코딩 IP를 `.env.local` 기반 `EXPO_PUBLIC_AI_BASE`, `EXPO_PUBLIC_BACKEND_BASE`로 전환. `scripts/nevo-dev.ps1 -StartBackend`가 `npm install`, Wi-Fi IP 감지, `.env.local` 생성, Docker Postgres/Redis 실행, Backend 실행, AI Python 의존성 설치 및 AI 서버 실행까지 담당. AI 제외 시 `-SkipAi`. 사용 문서는 `docs/LOCAL_TESTING.md`.
 - [ ] **FCM 푸시 미완**: Expo Go 원격푸시 미지원 + 백엔드가 Firebase FCM 토큰 요구 → dev build + google-services.json 필요. `updateDeviceToken()` 함수는 준비됨(등록 검증 완료), 실제 토큰 획득은 dev build 이후.
 - [ ] SQLite 로컬 저장 (expo-sqlite, 오프라인 대비)
 - [ ] Vercel 실제 배포

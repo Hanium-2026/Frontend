@@ -1,12 +1,10 @@
-// NEVO 백엔드(Spring) API 클라이언트.
-// AI 추론 서버(src/api.js, :8000)와는 별개. 이쪽은 세션/인증/리포트 등 비즈니스 API.
+// NEVO backend (Spring) API client.
+// Separate from the AI score server in src/api.js (:8000).
 import { tokenStore } from '../store/tokenStore';
 
-// 폰(Expo Go)에서 접속하려면 노트북 LAN IP. 같은 WiFi 필수. IP 바뀌면 여기 수정.
-// (웹/에뮬레이터만 테스트할 땐 http://localhost:8080 으로 바꿔도 됨)
-export const BACKEND_BASE = 'http://172.30.1.21:8080';
+// Set EXPO_PUBLIC_BACKEND_BASE in .env.local for Expo Go phone tests.
+export const BACKEND_BASE = process.env.EXPO_PUBLIC_BACKEND_BASE || 'http://localhost:8080';
 
-// 인증 없이 호출하는 경로 (Authorization 헤더 미부착 + 401 갱신 시도 안 함).
 const PUBLIC_PATHS = [
   '/api/auth/sms/send',
   '/api/auth/sms/verify',
@@ -20,7 +18,6 @@ const PUBLIC_PATHS = [
 
 const isPublic = (path) => PUBLIC_PATHS.some((p) => path.startsWith(p));
 
-// 백엔드 ErrorResponse({code, message, timestamp})를 담는 에러.
 export class ApiError extends Error {
   constructor({ status, code, message }) {
     super(message || code || `HTTP ${status}`);
@@ -30,7 +27,6 @@ export class ApiError extends Error {
   }
 }
 
-// 동시 401 발생 시 refresh가 한 번만 돌도록 단일 실행 보장.
 let _refreshing = null;
 
 async function refreshTokens() {
@@ -63,7 +59,6 @@ async function refreshTokens() {
   }
 }
 
-// 핵심 요청 함수. 성공 시 응답 래퍼의 data만 반환, 실패 시 ApiError throw.
 async function request(method, path, body, { _retried = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const useAuth = !isPublic(path);
@@ -78,13 +73,11 @@ async function request(method, path, body, { _retried = false } = {}) {
     body: body == null ? undefined : JSON.stringify(body),
   });
 
-  // 401 → 토큰 갱신 후 1회 재시도 (인증 경로/이미 재시도한 경우 제외).
   if (res.status === 401 && useAuth && !_retried) {
     await refreshTokens();
     return request(method, path, body, { _retried: true });
   }
 
-  // 204 또는 빈 바디 대응.
   const text = await res.text();
   const json = text ? JSON.parse(text) : null;
 
