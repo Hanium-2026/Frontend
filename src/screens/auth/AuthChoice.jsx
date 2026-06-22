@@ -8,6 +8,12 @@ export default function AuthChoice() {
   const router = useRouter();
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
+      <Pressable
+        onPress={() => router.push('/server-config')}
+        style={{ position: 'absolute', top: 54, right: 20, zIndex: 1, width: 38, height: 38, borderRadius: 19, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Icon.settings width={18} height={18} color={T.muted}/>
+      </Pressable>
       <View style={{
         flex: 1,
         paddingTop: 100, paddingHorizontal: 32,

@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { View, Platform } from 'react-native';
 import { tokenStore } from '../src/store/tokenStore';
+import { serverConfig } from '../src/store/serverConfig';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,10 +19,10 @@ export default function RootLayout() {
     'Pretendard-ExtraBold': require('../assets/fonts/Pretendard-ExtraBold.otf'),
   });
 
-  // 저장된 토큰을 메모리로 로드 — 라우팅/요청 전에 완료돼야 함.
+  // 저장된 토큰·서버 주소를 메모리로 로드 — 라우팅/요청 전에 완료돼야 함.
   const [sessionLoaded, setSessionLoaded] = useState(false);
   useEffect(() => {
-    tokenStore.load().finally(() => setSessionLoaded(true));
+    Promise.all([tokenStore.load(), serverConfig.load()]).finally(() => setSessionLoaded(true));
   }, []);
 
   const ready = loaded && sessionLoaded;
@@ -38,6 +39,7 @@ export default function RootLayout() {
       <Stack.Screen name="(auth)"/>
       <Stack.Screen name="(elder)"/>
       <Stack.Screen name="(caregiver)"/>
+      <Stack.Screen name="server-config"/>
     </Stack>
   );
 
