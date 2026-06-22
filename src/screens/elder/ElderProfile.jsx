@@ -88,8 +88,8 @@ export default function ElderProfile() {
       <AppHeader
         title="내 정보"
         right={
-          <Pressable onPress={() => router.push('/(elder)/profile-edit')} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 12, fontFamily: T.fontBold, color: T.blueDark }}>수정</Text>
+          <Pressable onPress={() => router.push('/(elder)/profile-edit')} style={{ paddingHorizontal: 16, height: 40, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: T.fs.caption, fontFamily: T.fontBold, color: T.blueDark }}>수정</Text>
           </Pressable>
         }
       />
@@ -99,8 +99,8 @@ export default function ElderProfile() {
           <Card pad={18} style={{ borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
             <Avatar name={name} size={62}/>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 19, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{name}</Text>
-              <Text style={{ fontSize: 13, color: T.muted, marginTop: 2 }}>{sub}</Text>
+              <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{name}</Text>
+              <Text style={{ fontSize: T.fs.label, color: T.body, marginTop: 3 }}>{sub}</Text>
             </View>
           </Card>
         </View>
@@ -115,14 +115,14 @@ export default function ElderProfile() {
                   <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
                     <I width={18} height={18} color={T.blue}/>
                   </View>
-                  <Text style={{ flex: 1, fontSize: 14, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
+                  <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
                   {on !== null ? (
                     <View style={{ width: 40, height: 24, borderRadius: 12, backgroundColor: on ? T.blue : T.line }}>
                       <View style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}/>
                     </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={{ fontSize: 13, color: T.muted }}>{d}</Text>
+                      <Text style={{ fontSize: T.fs.label, color: T.body }}>{d}</Text>
                       <Icon.chevron width={14} height={14} color={T.muted}/>
                     </View>
                   )}
@@ -140,8 +140,8 @@ export default function ElderProfile() {
                   <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
                     <I width={18} height={18} color={T.blue}/>
                   </View>
-                  <Text style={{ flex: 1, fontSize: 14, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
-                  <Text style={{ fontSize: 13, color: T.muted }}>{d}</Text>
+                  <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
+                  <Text style={{ fontSize: T.fs.label, color: T.body }}>{d}</Text>
                   <Icon.chevron width={14} height={14} color={T.muted}/>
                 </View>
               );
@@ -157,18 +157,26 @@ export default function ElderProfile() {
                   <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#EEF0F4', alignItems: 'center', justifyContent: 'center' }}>
                     <I width={18} height={18} color={T.muted}/>
                   </View>
-                  <Text style={{ flex: 1, fontSize: 14, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
+                  <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
                   <Icon.chevron width={14} height={14} color={T.muted}/>
                 </View>
               );
             })}
           </Card>
 
-          <Pressable onPress={handleLogout} style={{ marginTop: 16, paddingVertical: 16, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line, alignItems: 'center' }}>
-            <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.danger }}>로그아웃</Text>
+          <Pressable onPress={() => router.push('/server-config')} style={{ marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#EEF0F4', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.settings width={18} height={18} color={T.muted}/>
+            </View>
+            <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>서버 설정</Text>
+            <Icon.chevron width={14} height={14} color={T.muted}/>
+          </Pressable>
+
+          <Pressable onPress={handleLogout} style={{ marginTop: 12, paddingVertical: 18, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line, alignItems: 'center' }}>
+            <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.danger }}>로그아웃</Text>
           </Pressable>
           <Pressable onPress={handleDeleteAccount} style={{ marginTop: 10, paddingVertical: 14, alignItems: 'center' }}>
-            <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>회원 탈퇴</Text>
+            <Text style={{ fontSize: T.fs.caption, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>회원 탈퇴</Text>
           </Pressable>
         </View>
       </ScrollView>

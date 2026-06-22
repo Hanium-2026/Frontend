@@ -8,6 +8,7 @@ import Card from '../../components/Card';
 import Pill from '../../components/Pill';
 import SectionLabel from '../../components/SectionLabel';
 import { getSessionReport } from '../../api/reports';
+import { riskTone, RISK_LABEL } from '../../risk';
 
 const round = (n) => (n == null ? '--' : String(Math.round(n)));
 
@@ -30,7 +31,8 @@ export default function ElderSessionDetail() {
       .finally(() => setLoading(false));
   }, [sessionId]);
 
-  const suspected = report?.riskLevel === 'SUSPECTED';
+  const tone = report ? riskTone(report.avgScore, report.riskLevel) : 'ok';
+  const scoreColor = tone === 'danger' ? T.danger : tone === 'caution' ? T.caution : T.blue;
   const metrics = [
     ['평균 점수', round(report?.avgScore), '점'],
     ['최저 점수', round(report?.minScore), '점'],
@@ -49,7 +51,7 @@ export default function ElderSessionDetail() {
       ) : !report ? (
         <View style={{ paddingTop: 80, paddingHorizontal: 32, alignItems: 'center' }}>
           <Icon.doc width={40} height={40} color={T.line}/>
-          <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center' }}>상세 리포트를 불러오지 못했어요.</Text>
+          <Text style={{ fontSize: T.fs.body, color: T.body, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center' }}>상세 리포트를 불러오지 못했어요.</Text>
         </View>
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -57,16 +59,16 @@ export default function ElderSessionDetail() {
             <Card pad={18} style={{ borderRadius: 20 }}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <View>
-                  <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold }}>보행 점수</Text>
+                  <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontBold }}>보행 점수</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 5, marginTop: 2 }}>
-                    <Text style={{ fontSize: 44, fontFamily: T.fontExtraBold, color: suspected ? T.caution : T.blue, letterSpacing: -1 }}>{round(report.avgScore)}</Text>
-                    <Text style={{ fontSize: 13, color: T.muted, marginBottom: 9 }}>점</Text>
+                    <Text style={{ fontSize: 44, fontFamily: T.fontExtraBold, color: scoreColor, letterSpacing: -1 }}>{round(report.avgScore)}</Text>
+                    <Text style={{ fontSize: T.fs.caption, color: T.muted, marginBottom: 9 }}>점</Text>
                   </View>
                 </View>
-                <Pill tone={suspected ? 'caution' : 'ok'}>{suspected ? '주의' : '안정'}</Pill>
+                <Pill tone={tone}>{RISK_LABEL[tone]}</Pill>
               </View>
-              <Text style={{ fontSize: 13, color: T.body, lineHeight: 21, marginTop: 10, fontFamily: T.fontMedium }}>
-                {report.reportSummary || (suspected ? '측정 구간에서 이상 보행 의심 신호가 감지됐어요.' : '측정 구간의 보행 패턴이 안정적으로 기록됐어요.')}
+              <Text style={{ fontSize: T.fs.sub, color: T.body, lineHeight: 24, marginTop: 10, fontFamily: T.fontMedium }}>
+                {report.reportSummary || (tone === 'danger' ? '측정 구간에서 보행 점수가 낮게 기록됐어요. 보호자와 상담을 권해드려요.' : tone === 'caution' ? '측정 구간에서 이상 보행 의심 신호가 감지됐어요.' : '측정 구간의 보행 패턴이 안정적으로 기록됐어요.')}
               </Text>
             </Card>
           </View>
@@ -75,11 +77,11 @@ export default function ElderSessionDetail() {
             <SectionLabel>상세 지표</SectionLabel>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
               {metrics.map(([label, value, unit], i) => (
-                <Card key={i} pad={12} style={{ borderRadius: 14, width: '47.5%' }}>
-                  <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontSemiBold }}>{label}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 5 }}>
-                    <Text style={{ fontSize: 21, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{value}</Text>
-                    {!!unit && <Text style={{ fontSize: 11, color: T.muted, marginBottom: 2 }}>{unit}</Text>}
+                <Card key={i} pad={14} style={{ borderRadius: 14, width: '47.5%' }}>
+                  <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontSemiBold }}>{label}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 6 }}>
+                    <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{value}</Text>
+                    {!!unit && <Text style={{ fontSize: T.fs.caption, color: T.muted, marginBottom: 3 }}>{unit}</Text>}
                   </View>
                 </Card>
               ))}

@@ -11,6 +11,7 @@ import Avatar from '../../components/Avatar';
 import TabBar from '../../components/TabBar';
 import { getDashboard } from '../../api/reports';
 import { getMe } from '../../api/user';
+import { riskTone } from '../../risk';
 
 const CARE_TABS = [
   { icon: 'home',     label: '대시보드', path: '/(caregiver)/' },
@@ -24,10 +25,8 @@ const toneScore = { ok: T.ok, caution: T.caution, danger: T.danger };
 const toneSub   = { ok: T.body, caution: '#8B5A06', danger: '#9B1B1B' };
 const toneLabel = { ok: '안정', caution: '주의', danger: '위험' };
 
-// 백엔드는 riskLevel(NORMAL/SUSPECTED)만 제공 → 점수까지 반영해 3단계 톤 산출
-const toneOf = (w) => w.latestScore == null ? 'ok'
-  : w.latestScore < 50 ? 'danger'
-  : w.riskLevel === 'SUSPECTED' ? 'caution' : 'ok';
+// 위험도 톤은 공통 riskTone 기준 (점수<50 위험 / SUSPECTED·50~69 주의 / 그 외 안정)
+const toneOf = (w) => riskTone(w.latestScore, w.riskLevel);
 
 function fmtAgo(iso) {
   if (!iso) return '측정 기록 없음';

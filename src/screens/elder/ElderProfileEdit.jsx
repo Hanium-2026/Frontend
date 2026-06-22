@@ -14,14 +14,14 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function Field({ label, value, onChangeText, keyboardType = 'default', placeholder }) {
   return (
     <View style={{ marginBottom: 14 }}>
-      <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>{label}</Text>
+      <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontBold, marginBottom: 8 }}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
         placeholder={placeholder}
         placeholderTextColor={T.muted}
-        style={{ backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, borderWidth: 1.5, borderColor: value ? T.blueChip : T.line, fontSize: 16, fontFamily: T.fontSemiBold, color: T.ink }}
+        style={{ backgroundColor: T.bg, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 16, borderWidth: 1.5, borderColor: value ? T.blueChip : T.line, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}
       />
     </View>
   );
@@ -109,7 +109,7 @@ export default function ElderProfileEdit() {
             <SectionLabel>기본 정보</SectionLabel>
             <Card pad={16} style={{ borderRadius: 18 }}>
               <Field label="이름" value={form.name} onChangeText={(v) => setField('name', v)} placeholder="홍길동"/>
-              <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>성별</Text>
+              <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontBold, marginBottom: 8 }}>성별</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {[
                   ['FEMALE', '여성'],
@@ -118,8 +118,8 @@ export default function ElderProfileEdit() {
                   <Pressable
                     key={value}
                     onPress={() => setField('gender', value)}
-                    style={{ flex: 1, height: 44, borderRadius: 12, backgroundColor: form.gender === value ? T.blue : T.bg, borderWidth: 1, borderColor: form.gender === value ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: form.gender === value ? '#fff' : T.body }}>{label}</Text>
+                    style={{ flex: 1, height: 52, borderRadius: 12, backgroundColor: form.gender === value ? T.blue : T.bg, borderWidth: 1, borderColor: form.gender === value ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: form.gender === value ? '#fff' : T.body }}>{label}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -135,8 +135,8 @@ export default function ElderProfileEdit() {
         )}
 
         <View style={{ position: 'absolute', left: 16, right: 16, bottom: 28 }}>
-          <Pressable onPress={save} disabled={saving || loading} style={{ height: 54, borderRadius: 14, backgroundColor: saving || loading ? T.line : T.blue, alignItems: 'center', justifyContent: 'center' }}>
-            {saving ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: 16, fontFamily: T.fontBold, color: '#fff' }}>저장하기</Text>}
+          <Pressable onPress={save} disabled={saving || loading} style={{ height: T.tap, borderRadius: 16, backgroundColor: saving || loading ? T.line : T.blue, alignItems: 'center', justifyContent: 'center' }}>
+            {saving ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: 18, fontFamily: T.fontExtraBold, color: '#fff' }}>저장하기</Text>}
           </Pressable>
         </View>
       </View>

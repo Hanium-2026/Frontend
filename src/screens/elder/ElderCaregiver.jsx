@@ -76,20 +76,20 @@ export default function ElderCaregiver() {
             {code ? (
               <>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', fontFamily: T.fontSemiBold, letterSpacing: 0.4 }}>연동 코드</Text>
-                  <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>보호자에게 알려주세요</Text>
+                  <Text style={{ fontSize: T.fs.caption, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold, letterSpacing: 0.4 }}>연동 코드</Text>
+                  <Text style={{ fontSize: T.fs.caption, color: 'rgba(255,255,255,0.9)' }}>보호자에게 알려주세요</Text>
                 </View>
-                <Text style={{ fontSize: 38, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: 6, marginTop: 8 }}>{code.code}</Text>
-                <Pressable onPress={() => setCode(null)} style={{ marginTop: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#fff' }}>다른 보호자 코드 만들기</Text>
+                <Text style={{ fontSize: 42, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: 6, marginTop: 8 }}>{code.code}</Text>
+                <Pressable onPress={() => setCode(null)} style={{ marginTop: 14, paddingVertical: 15, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center' }}>
+                  <Text style={{ fontSize: T.fs.sub, fontFamily: T.fontBold, color: '#fff' }}>다른 보호자 코드 만들기</Text>
                 </Pressable>
               </>
             ) : (
               <>
-                <Text style={{ fontSize: 14, color: '#fff', fontFamily: T.fontBold }}>보호자 연동 코드 만들기</Text>
-                <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 4, lineHeight: 18 }}>보호자 전화번호를 입력하면 연동 코드를 만들어드려요.</Text>
+                <Text style={{ fontSize: T.fs.body, color: '#fff', fontFamily: T.fontBold }}>보호자 연동 코드 만들기</Text>
+                <Text style={{ fontSize: T.fs.label, color: 'rgba(255,255,255,0.9)', marginTop: 5, lineHeight: 21 }}>보호자 전화번호를 입력하면 연동 코드를 만들어드려요.</Text>
                 <TextInput
-                  style={{ marginTop: 12, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, fontFamily: T.fontSemiBold, color: T.ink }}
+                  style={{ marginTop: 14, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 15, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}
                   value={phone}
                   onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))}
                   placeholder="보호자 전화번호 (01012345678)"
@@ -97,8 +97,8 @@ export default function ElderCaregiver() {
                   keyboardType="number-pad"
                   maxLength={11}
                 />
-                <Pressable onPress={handleGenerate} disabled={busy} style={{ marginTop: 10, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center' }}>
-                  {busy ? <ActivityIndicator color={T.blue}/> : <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.blue }}>코드 생성</Text>}
+                <Pressable onPress={handleGenerate} disabled={busy} style={{ marginTop: 12, height: T.tap, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center' }}>
+                  {busy ? <ActivityIndicator color={T.blue}/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.blue }}>코드 생성</Text>}
                 </Pressable>
               </>
             )}
@@ -112,14 +112,14 @@ export default function ElderCaregiver() {
               <View style={{ padding: 20, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>
             ) : guardians.length === 0 ? (
               <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>아직 연결된 보호자가 없어요.</Text>
+                <Text style={{ fontSize: T.fs.label, color: T.muted, fontFamily: T.fontSemiBold }}>아직 연결된 보호자가 없어요.</Text>
               </View>
             ) : guardians.map((g, i) => (
               <View key={g.guardianUserId} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: i < guardians.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
                 <Avatar name={g.name} size={44}/>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.ink }}>{g.name}</Text>
-                  <Text style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{fmtDate(g.linkedAt)}</Text>
+                  <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>{g.name}</Text>
+                  <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: 3 }}>{fmtDate(g.linkedAt)}</Text>
                 </View>
               </View>
             ))}
@@ -129,7 +129,7 @@ export default function ElderCaregiver() {
           <Card pad={0} style={{ borderRadius: 18 }}>
             {sharing.map(([l, on], i) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < sharing.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
-                <Text style={{ flex: 1, fontSize: 14, color: T.ink, fontFamily: T.fontMedium }}>{l}</Text>
+                <Text style={{ flex: 1, fontSize: T.fs.sub, color: T.ink, fontFamily: T.fontMedium }}>{l}</Text>
                 <View style={{ width: 40, height: 24, borderRadius: 12, backgroundColor: on ? T.blue : T.line }}>
                   <View style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}/>
                 </View>

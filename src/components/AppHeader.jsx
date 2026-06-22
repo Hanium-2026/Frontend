@@ -18,8 +18,8 @@ export default function AppHeader({ title, sub, right, onBack }) {
         </Pressable>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, lineHeight: 28 }}>{title}</Text>
-        {sub && <Text style={{ fontSize: 13, fontFamily: T.font, color: T.muted, marginTop: 2 }}>{sub}</Text>}
+        <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, lineHeight: 30 }}>{title}</Text>
+        {sub && <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, marginTop: 3 }}>{sub}</Text>}
       </View>
       {right}
     </View>

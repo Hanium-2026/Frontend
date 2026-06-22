@@ -10,6 +10,11 @@ import BarChart from '../../components/BarChart';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
 import { getDailyReport } from '../../api/reports';
+import { riskTone, RISK_LABEL } from '../../risk';
+
+// 세션 위험도 톤 → 아이콘 배경/글자 색
+const TONE_BG = { ok: T.blueSoft, caution: T.cautionSoft, danger: T.dangerSoft };
+const TONE_FG = { ok: T.blue, caution: '#8B5A06', danger: '#9B1B1B' };
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
@@ -53,13 +58,14 @@ export default function ElderHistory() {
   const delta = trend.length >= 2 ? round(trend[trend.length - 1] - trend[0]) : null;
 
   const records = sessions.map((s) => {
-    const caution = s.riskLevel === 'SUSPECTED';
+    const tone = riskTone(s.avgScore, s.riskLevel);
+    const noteByTone = tone === 'danger' ? '위험 의심' : tone === 'caution' ? '이상 의심' : '안정';
     return {
       key: s.sessionId,
       d: fmtWhen(s.createdAt),
       s: round(s.avgScore),
-      t: caution ? 'caution' : 'ok',
-      n: s.symmetryScore != null ? `좌우대칭 ${round(s.symmetryScore)}%` : (caution ? '이상 의심' : '안정'),
+      t: tone,
+      n: s.symmetryScore != null ? `좌우대칭 ${round(s.symmetryScore)}%` : noteByTone,
       icon: 'walk',
     };
   });
@@ -84,7 +90,7 @@ export default function ElderHistory() {
         ) : (sessions.length === 0 && daily.length === 0) ? (
           <View style={{ paddingTop: 80, paddingHorizontal: 32, alignItems: 'center' }}>
             <Icon.history width={40} height={40} color={T.line}/>
-            <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center' }}>아직 측정 기록이 없어요.{'\n'}걷기 화면에서 측정을 시작해 보세요.</Text>
+            <Text style={{ fontSize: T.fs.body, color: T.body, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center', lineHeight: 24 }}>아직 측정 기록이 없어요.{'\n'}걷기 화면에서 측정을 시작해 보세요.</Text>
           </View>
         ) : (
           <>
@@ -92,10 +98,10 @@ export default function ElderHistory() {
               <Card pad={16} style={{ borderRadius: 18 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <View>
-                    <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontSemiBold, letterSpacing: 0.2 }}>최근 {trend.length}일 평균</Text>
+                    <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontSemiBold, letterSpacing: 0.2 }}>최근 {trend.length}일 평균</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
-                      <Text style={{ fontSize: 30, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6 }}>{weeklyAvg != null ? weeklyAvg.toFixed(1) : '--'}</Text>
-                      <Text style={{ fontSize: 12, color: T.muted, marginBottom: 4 }}>점</Text>
+                      <Text style={{ fontSize: 32, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6 }}>{weeklyAvg != null ? weeklyAvg.toFixed(1) : '--'}</Text>
+                      <Text style={{ fontSize: T.fs.caption, color: T.muted, marginBottom: 5 }}>점</Text>
                     </View>
                   </View>
                   {delta != null && delta !== 0 && (
@@ -115,7 +121,7 @@ export default function ElderHistory() {
               <Card pad={0} style={{ borderRadius: 18 }}>
                 {records.length === 0 && (
                   <View style={{ padding: 20, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>표시할 세션이 없어요.</Text>
+                    <Text style={{ fontSize: T.fs.label, color: T.muted, fontFamily: T.fontSemiBold }}>표시할 세션이 없어요.</Text>
                   </View>
                 )}
                 {records.map((r, i) => {
@@ -130,18 +136,18 @@ export default function ElderHistory() {
                     }}>
                       <View style={{
                         width: 38, height: 38, borderRadius: 12,
-                        backgroundColor: r.t === 'ok' ? T.blueSoft : T.cautionSoft,
+                        backgroundColor: TONE_BG[r.t],
                         alignItems: 'center', justifyContent: 'center',
                       }}>
-                        <I width={20} height={20} color={r.t === 'ok' ? T.blue : '#8B5A06'}/>
+                        <I width={20} height={20} color={TONE_FG[r.t]}/>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.ink }}>{r.d}</Text>
-                        <Text style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>{r.n}</Text>
+                        <Text style={{ fontSize: T.fs.sub, fontFamily: T.fontBold, color: T.ink }}>{r.d}</Text>
+                        <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: 3 }}>{r.n}</Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={{ fontSize: 18, fontFamily: T.fontExtraBold, color: T.ink }}>{r.s}</Text>
-                        <Pill tone={r.t} size="sm">{r.t === 'ok' ? '안정' : '주의'}</Pill>
+                        <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: T.ink }}>{r.s}</Text>
+                        <Pill tone={r.t} size="sm">{RISK_LABEL[r.t]}</Pill>
                       </View>
                     </Pressable>
                   );

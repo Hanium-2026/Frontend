@@ -29,6 +29,18 @@ const T = {
   fontBold: 'Pretendard-Bold',
   fontExtraBold: 'Pretendard-ExtraBold',
   fontMono: 'Courier',
+
+  // 노인 친화 타이포 스케일 (단일 기준). 본문 최소 17, 캡션 최소 14 — 9~13px 금지.
+  fs: {
+    display: 44,  // 큰 점수
+    title: 26,    // 화면 제목·상태 문구
+    h: 20,        // 섹션 헤더·카드 제목
+    body: 17,     // 기본 본문
+    sub: 16,      // 보조 본문(밀집 영역)
+    label: 15,    // 라벨
+    caption: 14,  // 최소 크기
+  },
+  tap: 56,        // 주 버튼/터치 최소 높이
 };
 
 export default T;
