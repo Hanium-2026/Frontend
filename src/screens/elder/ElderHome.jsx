@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import Svg, { Circle, Text as SvgText } from 'react-native-svg';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, Animated, Easing } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { useFocusEffect, useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -12,9 +12,22 @@ import ElderTopBlock from '../../components/ElderTopBlock';
 import { getMe } from '../../api/user';
 import { getMyGuardians } from '../../api/links';
 import { getDailyReport } from '../../api/reports';
+import { riskTone } from '../../risk';
 
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 const roundN = (n) => (n == null ? 0 : Math.round(n));
+
+const TONE_COLOR = { ok: T.ok, caution: T.caution, danger: T.danger };
+
+// 점수 → 상태 라벨/색 (노인이 한눈에 알 수 있도록 색으로도 구분). 색 기준은 공통 riskTone.
+const statusOf = (score) => {
+  if (score == null) return { label: '측정해 주세요', dot: 'rgba(255,255,255,0.6)' };
+  const tone = riskTone(score);
+  return {
+    label: tone === 'ok' ? '안정적이에요' : tone === 'caution' ? '주의가 필요해요' : '관리가 필요해요',
+    dot: TONE_COLOR[tone],
+  };
+};
 
 const ELDER_TABS = [
   { icon: 'home', label: '홈', path: '/(elder)/' },
@@ -23,6 +36,12 @@ const ELDER_TABS = [
   { icon: 'family', label: '보호자', path: '/(elder)/caregiver' },
   { icon: 'user', label: '내정보', path: '/(elder)/profile' },
 ];
+
+const RING = 120;
+const R = 50;
+const CIRC = 2 * Math.PI * R; // 314.16
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function ElderHome() {
   const router = useRouter();
@@ -48,14 +67,26 @@ export default function ElderHome() {
   const dayLabels = daily.map((d) => WEEKDAY[new Date(d.date).getDay()]);
   const weeklyAvg = trend.length ? roundN(trend.reduce((a, b) => a + b, 0) / trend.length) : null;
   const todayScore = trend.length ? trend[trend.length - 1] : null;
-  const ringOffset = todayScore != null ? 238.7 * (1 - Math.max(0, Math.min(100, todayScore)) / 100) : 238.7;
+  const status = statusOf(todayScore);
 
-  const metrics = [
-    { i: 'steps', label: '걸음수', v: '2,840', sub: '걸음', tone: T.blue },
-    { i: 'walk', label: '이동 거리', v: '1.4', sub: 'km', tone: '#7B5BD9' },
-    { i: 'shield', label: '좌우 균형', v: '92%', sub: '안정', tone: T.ok },
-    { i: 'fall', label: '낙상 위험', v: '낮음', sub: '0건', tone: T.ok },
-  ];
+  // 점수 카운트업 + 링 채우기 (데모 임팩트 + 변화 이해 도움)
+  const progress = useRef(new Animated.Value(0)).current;
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    if (todayScore == null) { setDisplay(0); return; }
+    progress.setValue(0);
+    const id = progress.addListener(({ value }) => setDisplay(Math.round(value * todayScore)));
+    Animated.timing(progress, {
+      toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+    }).start();
+    return () => progress.removeListener(id);
+  }, [todayScore]);
+
+  const clamped = Math.max(0, Math.min(100, todayScore ?? 0));
+  const ringOffset = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [CIRC, CIRC * (1 - clamped / 100)],
+  });
 
   const guardianCount = guardians.length;
   const guardianPreview = guardians.slice(0, 2);
@@ -63,140 +94,135 @@ export default function ElderHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <ElderTopBlock minHeight={220}>
+      <ElderTopBlock minHeight={296}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: T.font }}>오늘도 함께 걸어요</Text>
-            <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: '#fff', marginTop: 2, letterSpacing: -0.6 }}>
-              안녕하세요, {name ? `${name}님` : '반갑습니다'}
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.9)', fontFamily: T.font }}>오늘도 함께 걸어요</Text>
+            <Text style={{ fontSize: 28, fontFamily: T.fontExtraBold, color: '#fff', marginTop: 4, letterSpacing: -0.6 }}>
+              {name ? `${name}님, 안녕하세요` : '반갑습니다'}
             </Text>
           </View>
-          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.bell width={20} height={20} color="#fff"/>
-            <View style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FCD34D', borderWidth: 1.5, borderColor: T.blue }}/>
-          </View>
+          <Pressable style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon.bell width={24} height={24} color="#fff"/>
+            <View style={{ position: 'absolute', top: 10, right: 11, width: 9, height: 9, borderRadius: 4.5, backgroundColor: '#FCD34D', borderWidth: 1.5, borderColor: T.blue }}/>
+          </Pressable>
         </View>
 
-        <View style={{ marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <Svg width={92} height={92} viewBox="0 0 92 92">
-            <Circle cx="46" cy="46" r="38" stroke="rgba(255,255,255,0.22)" strokeWidth="8" fill="none"/>
-            <Circle cx="46" cy="46" r="38" stroke="#fff" strokeWidth="8" fill="none"
-              strokeLinecap="round" strokeDasharray="238.7" strokeDashoffset={ringOffset}
-              transform="rotate(-90 46 46)"/>
-            <SvgText x="46" y="50" textAnchor="middle" fontSize="22" fontFamily={T.fontExtraBold} fill="#fff">{todayScore ?? '--'}</SvgText>
-            <SvgText x="46" y="63" textAnchor="middle" fontSize="9" fontFamily={T.font} fill="#fff" opacity="0.7">/ 100</SvgText>
-          </Svg>
+        <View style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+          <View style={{ width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
+            <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`}>
+              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.22)" strokeWidth="10" fill="none"/>
+              <AnimatedCircle
+                cx={RING / 2} cy={RING / 2} r={R} stroke="#fff" strokeWidth="10" fill="none"
+                strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={ringOffset}
+                transform={`rotate(-90 ${RING / 2} ${RING / 2})`}/>
+            </Svg>
+            <View style={{ position: 'absolute', alignItems: 'center' }}>
+              <Text style={{ fontSize: 44, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1 }}>
+                {todayScore == null ? '--' : display}
+              </Text>
+              <Text style={{ fontSize: 14, fontFamily: T.font, color: 'rgba(255,255,255,0.75)', marginTop: -2 }}>/ 100점</Text>
+            </View>
+          </View>
+
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', fontFamily: T.fontSemiBold, letterSpacing: 0.4 }}>오늘의 걸음 건강</Text>
-            <Text style={{ fontSize: 20, fontFamily: T.fontExtraBold, color: '#fff', marginTop: 4, letterSpacing: -0.4 }}>안정적이에요</Text>
-            <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 4, fontFamily: T.font }}>
-              어제보다 <Text style={{ fontFamily: T.fontBold }}>+3점</Text> · 7일 평균 76점
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: status.dot }}/>
+              <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold }}>오늘의 걸음 건강</Text>
+            </View>
+            <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: '#fff', marginTop: 6, letterSpacing: -0.5 }}>{status.label}</Text>
+            <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.9)', marginTop: 6, fontFamily: T.font, lineHeight: 21 }}>
+              7일 평균 <Text style={{ fontFamily: T.fontBold }}>{weeklyAvg ?? '--'}점</Text>
             </Text>
           </View>
         </View>
       </ElderTopBlock>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          <Card pad={0} style={{ borderRadius: 20 }}>
-            <View style={{ padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <View style={{ width: 52, height: 52, borderRadius: 14, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon.walk width={30} height={30} color={T.blue}/>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.ink }}>지금 측정하기</Text>
-                <Text style={{ fontSize: 12.5, color: T.muted, marginTop: 2, fontFamily: T.font }}>30초 동안 평소처럼 걸어주세요</Text>
-              </View>
-              <Pressable
-                onPress={() => router.push('/(elder)/measure')}
-                style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: T.blue }}>
-                <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#fff' }}>시작</Text>
-              </Pressable>
+        {/* 주요 행동: 측정 시작 — 풀폭 큰 버튼 */}
+        <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
+          <Pressable
+            onPress={() => router.push('/(elder)/measure')}
+            style={({ pressed }) => ({
+              borderRadius: 20, backgroundColor: pressed ? T.blueDark : T.blue,
+              paddingVertical: 18, paddingHorizontal: 20,
+              flexDirection: 'row', alignItems: 'center', gap: 16,
+              shadowColor: T.blue, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 5,
+            })}>
+            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.walk width={34} height={34} color="#fff"/>
             </View>
-            <View style={{ backgroundColor: T.blueWash, paddingHorizontal: 18, paddingVertical: 10, flexDirection: 'row', gap: 6, alignItems: 'center', borderTopWidth: 1, borderTopColor: T.line }}>
-              <Icon.spark width={14} height={14} color={T.blue}/>
-              <Text style={{ fontSize: 11.5, color: T.muted, fontFamily: T.font }}>
-                오늘은 백그라운드로 <Text style={{ fontFamily: T.fontBold }}>2,840걸음</Text>을 자동 분석했어요
-              </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 21, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -0.3 }}>지금 측정하기</Text>
+              <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.92)', marginTop: 3, fontFamily: T.font }}>30초 동안 평소처럼 걸어주세요</Text>
             </View>
-          </Card>
+            <Icon.chevron width={22} height={22} color="#fff"/>
+          </Pressable>
         </View>
 
-        <View style={{ paddingHorizontal: 16, marginTop: 14, gap: 10 }}>
-          {[metrics.slice(0, 2), metrics.slice(2, 4)].map((row, ri) => (
-            <View key={ri} style={{ flexDirection: 'row', gap: 10 }}>
-              {row.map((m, k) => {
-                const I = Icon[m.i];
-                return (
-                  <Card key={k} pad={14} style={{ borderRadius: 16, flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={{ fontSize: 11.5, color: T.muted, fontFamily: T.fontSemiBold }}>{m.label}</Text>
-                      <I width={16} height={16} color={m.tone}/>
-                    </View>
-                    <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
-                      <Text style={{ fontSize: 22, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{m.v}</Text>
-                      <Text style={{ fontSize: 11, color: T.muted, marginBottom: 2, fontFamily: T.font }}>{m.sub}</Text>
-                    </View>
-                  </Card>
-                );
-              })}
-            </View>
-          ))}
-        </View>
-
-        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+        {/* 보호자 연결 */}
+        <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
           <Pressable onPress={() => router.push('/(elder)/caregiver')}>
-            <Card pad={14} style={{ borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Card pad={16} style={{ borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               {guardianCount > 0 ? (
                 <View style={{ flexDirection: 'row' }}>
                   {guardianPreview.map((g, i) => (
-                    <View key={g.guardianUserId ?? i} style={{ marginLeft: i === 0 ? 0 : -8 }}>
-                      <Avatar name={g.name || '보호자'} size={32}/>
+                    <View key={g.guardianUserId ?? i} style={{ marginLeft: i === 0 ? 0 : -10 }}>
+                      <Avatar name={g.name || '보호자'} size={44}/>
                     </View>
                   ))}
                 </View>
               ) : (
-                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon.family width={20} height={20} color={T.blue}/>
+                <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon.family width={26} height={26} color={T.blue}/>
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: T.ink }}>
+                <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: T.ink }}>
                   {guardianCount > 0 ? `연결된 보호자 ${guardianCount}명` : '보호자 연결하기'}
                 </Text>
-                <Text style={{ fontSize: 11.5, color: T.muted, marginTop: 1, fontFamily: T.font }}>
+                <Text style={{ fontSize: 14, color: T.body, marginTop: 3, fontFamily: T.font, lineHeight: 19 }}>
                   {guardianCount > 0 ? `${guardianNames || '보호자'}님과 결과를 공유 중이에요` : '보호자 전화번호로 연동 코드를 만들 수 있어요'}
                 </Text>
               </View>
-              <Icon.chevron width={16} height={16} color={T.muted}/>
+              <Icon.chevron width={20} height={20} color={T.muted}/>
             </Card>
           </Pressable>
         </View>
 
-        {trend.length > 0 && (
-          <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+        {/* 이번 주 추이 — 기록 있으면 차트, 없으면 측정 안내 */}
+        <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+          {trend.length > 0 ? (
             <Pressable onPress={() => router.push('/(elder)/history')}>
-              <Card pad={16} style={{ borderRadius: 18 }}>
+              <Card pad={18} style={{ borderRadius: 20 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <View>
-                    <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontSemiBold, letterSpacing: 0.2 }}>이번 주 평균</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, marginTop: 2 }}>
-                      <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.5 }}>{weeklyAvg ?? '--'}</Text>
-                      <Text style={{ fontSize: 12, color: T.muted, marginBottom: 3 }}>점</Text>
+                    <Text style={{ fontSize: 14, color: T.body, fontFamily: T.fontSemiBold }}>이번 주 평균</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 5, marginTop: 4 }}>
+                      <Text style={{ fontSize: 32, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6 }}>{weeklyAvg ?? '--'}</Text>
+                      <Text style={{ fontSize: 15, color: T.muted, marginBottom: 5 }}>점</Text>
                     </View>
                   </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Text style={{ fontSize: 11.5, fontFamily: T.fontBold, color: T.blueDark }}>자세히</Text>
-                    <Icon.chevron width={12} height={12} color={T.blueDark}/>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.blueDark }}>자세히</Text>
+                    <Icon.chevron width={15} height={15} color={T.blueDark}/>
                   </View>
                 </View>
-                <View style={{ marginTop: 10 }}>
-                  <BarChart data={trend} width={328} height={84} color={T.blue} max={100} labels={dayLabels}/>
+                <View style={{ marginTop: 14 }}>
+                  <BarChart data={trend} width={300} height={104} color={T.blue} max={100} labels={dayLabels}/>
                 </View>
               </Card>
             </Pressable>
-          </View>
-        )}
+          ) : (
+            <Card pad={20} style={{ borderRadius: 20, alignItems: 'center' }}>
+              <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon.walk width={28} height={28} color={T.blue}/>
+              </View>
+              <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink, marginTop: 12 }}>아직 측정 기록이 없어요</Text>
+              <Text style={{ fontSize: T.fs.label, color: T.body, marginTop: 4, textAlign: 'center', lineHeight: 21 }}>지금 측정하면 여기에 걸음 건강이 기록돼요</Text>
+            </Card>
+          )}
+        </View>
       </ScrollView>
 
       <TabBar tabs={ELDER_TABS} active={0}/>

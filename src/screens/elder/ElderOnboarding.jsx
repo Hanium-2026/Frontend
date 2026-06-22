@@ -31,7 +31,7 @@ export default function ElderOnboarding() {
             <Icon.walk width={56} height={56} color="#fff"/>
           </View>
           <Text style={{ fontSize: 36, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: 4, lineHeight: 40 }}>NEVO</Text>
-          <Text style={{ fontSize: 15, fontFamily: T.font, color: T.muted, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
+          <Text style={{ fontSize: T.fs.body, fontFamily: T.font, color: T.body, marginTop: 10, textAlign: 'center', lineHeight: 25 }}>
             {'매일 걷는 것만으로\n뇌 건강을 살펴드려요'}
           </Text>
 
@@ -48,8 +48,8 @@ export default function ElderOnboarding() {
                     <I width={22} height={22} color={T.blue}/>
                   </View>
                   <View>
-                    <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.ink }}>{f.t}</Text>
-                    <Text style={{ fontSize: 13, fontFamily: T.font, color: T.muted, marginTop: 1 }}>{f.s}</Text>
+                    <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>{f.t}</Text>
+                    <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, marginTop: 2 }}>{f.s}</Text>
                   </View>
                 </View>
               );
@@ -58,18 +58,18 @@ export default function ElderOnboarding() {
         </LinearGradient>
 
         <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, backgroundColor: '#fff' }}>
-          <Text style={{ fontSize: 12, fontFamily: T.font, color: T.muted, textAlign: 'center', marginBottom: 12 }}>어떻게 사용하시나요?</Text>
+          <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, textAlign: 'center', marginBottom: 12 }}>어떻게 사용하시나요?</Text>
           <Pressable
             onPress={() => router.push('/(auth)/')}
             style={{ width: '100%', height: 56, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginBottom: 10 }}>
             <Icon.user width={20} height={20} color="#fff"/>
-            <Text style={{ fontSize: 16, fontFamily: T.fontBold, color: '#fff' }}>본인이 사용해요</Text>
+            <Text style={{ fontSize: 18, fontFamily: T.fontBold, color: '#fff' }}>본인이 사용해요</Text>
           </Pressable>
           <Pressable
             onPress={() => router.push('/(auth)/')}
             style={{ width: '100%', height: 56, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1.5, borderColor: T.blueSoft }}>
             <Icon.family width={20} height={20} color={T.blue}/>
-            <Text style={{ fontSize: 16, fontFamily: T.fontBold, color: T.blue }}>가족을 돌봐요</Text>
+            <Text style={{ fontSize: 18, fontFamily: T.fontBold, color: T.blue }}>가족을 돌봐요</Text>
           </Pressable>
         </View>
       </ScrollView>

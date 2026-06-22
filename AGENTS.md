@@ -121,10 +121,17 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 ```
 - Firebase 키 없어도 부팅됨 (FCM만 비활성, 경고 로그만). 실제 SMS 발송 안 함 — **OTP 코드는 백엔드 콘솔 로그**에 `[SMS][DEV ONLY] ... code=NNNNNN` 형태로 찍힘.
 - 회원가입/로그인/세션/리포트 전부 실테스트 가능. 재시작 시 위 3단계 반복(컨테이너는 `docker start nevo-db nevo-redis`로 재기동).
-- **물리 폰에서 테스트 시**: `.\scripts\nevo-dev.ps1`로 현재 Wi-Fi IP를 감지해 `.env.local`의 `EXPO_PUBLIC_BACKEND_BASE`, `EXPO_PUBLIC_AI_BASE`를 생성한다. 코드 파일의 IP를 직접 수정하지 않는다.
+- **물리 폰에서 테스트 시**: 서버 주소는 더 이상 코드에 하드코딩하지 않음 → 앱 **서버 설정 화면**(아래)에서 변경. 로컬 백엔드를 쓰려면 거기서 노트북 IP로 교체. (또는 `.\scripts\nevo-dev.ps1`로 Wi-Fi IP 자동 감지 가능)
+
+### 서버 주소 런타임 설정 (★ APK 대응, 2026-05-26)
+- 주소를 코드에 박지 않고 `src/store/serverConfig.js`(secure-store 영속, `_layout`에서 `load()`)에서 관리. **APK 재빌드 없이** 앱 안에서 백엔드/AI 주소를 바꿔 저장 가능.
+- 기본값: 백엔드 `https://backend-xws4.onrender.com`(Render 배포, 고정), AI 추론 `http://172.20.10.4:8000`.
+- 진입점(`/server-config` 라우트, `src/screens/ServerConfig.jsx`): **AuthChoice 우상단 톱니**(로그인 전), **ElderProfile**(WARD), **CareNotifSettings 개발자 섹션**(GUARDIAN).
+- 소비처는 모두 동적 getter 사용: `client.js`→`serverConfig.getBackendBase()`, `api.js`/`location.js` 동일. (옛 `BACKEND_BASE`/`API_BASE` 상수 export 제거됨)
+- **AI 서버 공개 방법**: 노트북 로컬 IP는 같은 WiFi에서만 접속 → 외부 테스터는 **ngrok 터널**(`ngrok http 8000` → `https://xxxx.ngrok.app`)을 띄워 그 주소를 앱 설정에 입력. 주소 바뀌면 설정에서 다시 입력(재빌드 불필요).
 
 ### 공통 규칙
-- **Base URL**: `http://localhost:8080` (운영 도메인 교체 필요)
+- **Base URL**: 기본값 `https://backend-xws4.onrender.com` (서버 설정 화면에서 변경 가능)
 - **인증 헤더**: `Authorization: Bearer {accessToken}` — 아래 Auth 8종만 토큰 불필요
 - **응답 래퍼**: 모든 응답이 `{ code, message, timestamp, data }` — 실제 값은 `data` 안
 - **역할**: 토큰의 WARD/GUARDIAN에 따라 호출 가능 API 제한 (위반 시 403)
@@ -234,7 +241,12 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 | 2026-05-26 | HuGaDB 1차 동작분류 모델 자산을 `models/hugadb`에 복사하고 `/score` 서버에 TFLite 추론 경로 추가. 현재 노트북은 `ai-edge-litert==2.1.5`로 모델 로드 가능 |
 | 2026-05-26 | Wi-Fi 변경 후 AI 서버 주소를 `172.20.10.4:8000`으로 갱신하고, 측정 화면에 1차 동작분류(`activityClass` + confidence) 표시 추가 |
 | 2026-05-26 | `upstairs 91%` 고정 원인 확인: Expo `g/rad/s` 값을 HuGaDB raw scaler에 그대로 넣은 단위 불일치. HuGaDB int16 범위 기준 변환(`acc * 16384`, `gyro * 938.734`) 적용 |
-| 2026-06-01 | 다른 PC Expo Go 테스트를 쉽게 하기 위해 하드코딩 IP를 Expo `EXPO_PUBLIC_*` 환경변수로 전환하고, `scripts/nevo-dev.ps1` + `docs/LOCAL_TESTING.md` 추가. `-StartBackend` 실행 시 AI 서버도 자동 실행 |
+| 2026-05-26 | **백엔드 Render 배포 주소 수령**: `https://backend-xws4.onrender.com` (Swagger `/swagger-ui/index.html`, CORS 전체 허용). 백엔드 기본값을 이 주소로 교체 |
+| 2026-05-26 | **APK 단계 진입 결정**: dev build로 진행. 목적=개발/테스트 + 외부 테스터 배포. 서버 주소를 런타임 설정으로 빼서 IP 변동 시 재빌드 불필요하게 함. AI 서버는 ngrok 터널로 공개 |
+| 2026-05-26 | **AI 아키텍처 최종 방향 확정 = 기기 내 TFLite**. 현재 서버 추론(:8000)은 모델이 계속 바뀌는 전환기 방식 → 최종엔 IMU(Kotlin 네이티브) → 기기 내 TFLite → 오프라인 저장(SQLite) → 연결 시 백엔드 동기화. **Kotlin IMU 모듈·기기 내 TFLite 모두 dev build 전제** → 지금 dev build 선택이 공통 토대. 서버 주소 설정은 전환기 도구(나중 제거 용이) |
+| 2026-06-01 | 다른 PC Expo Go 테스트를 쉽게 하기 위해 `scripts/nevo-dev.ps1` + `docs/LOCAL_TESTING.md` 추가. `-StartBackend` 실행 시 AI 서버도 자동 실행 |
+| 2026-06-22 | **노인 친화 + 공모전 임팩트 UI 개선 착수**. ElderHome 재설계(점수 히어로 링 120px·카운트업 애니메이션, 본문 14~17px 확대, 측정 버튼 풀폭 72px, 대비 강화). **위험도 색 기준을 `src/risk.js`로 일원화** — 점수<50=위험/SUSPECTED·50~69=주의/그외 안정. 노인 화면도 이제 위험(빨강) 표시. |
+| 2026-06-22 | **노인 친화 타입 스케일 토큰 도입** — `tokens.js`에 `T.fs`(display44/title26/h20/body17/sub16/label15/caption14, **9~13px 본문 금지**)·`T.tap`(56) 추가. 노인 화면 전체(Home·Measure·Result·History·SessionDetail·Caregiver·Profile·ProfileEdit·SOS·Onboarding)에 일괄 적용: 본문 17px+, 캡션 14px+, 중요 정보는 `muted` 회색 대신 `ink/body`로 대비 확보, 주 버튼/터치 56px. 측정 화면 = 결과 화면과 같은 파랑 히어로 언어로 통일. 신규 화면 작성 시 인라인 숫자 대신 `T.fs`/`T.tap` 사용할 것. |
 
 ---
 
@@ -254,7 +266,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 - [x] **측정 세션 ↔ `/api/gait/sessions` 연동** (2026-05-26) — `src/api/session.js`(start/active/ensureSession/data/stop/analysis + `toMinuteAt` 로컬 분 키). `ElderMeasure`: 진입 시 `ensureSession`(404→start), AI 윈도우 점수를 분당 집계(avg/min/max/dangerCount)해 `/data` 업로드, 정지 시 잔여 `/data`→`/stop`→`/analysis`. **로그인 WARD만 연동**(아니면 AI 측정만, graceful degrade). 라이브 백엔드로 start→active→data→stop→analysis→report 전수 검증. 점수 계산은 여전히 AI 추론 서버(:8000), 백엔드엔 집계만 전송.
 - [x] **리포트/대시보드 조회 연동** (2026-05-26) — `src/api/reports.js`(getDailyReport/getGuardianDailyReport/getDashboard/getSessionReport). `ElderHistory`→`/reports/daily`(7일 바차트+세션목록), `CareDashboard`→`/reports/dashboard`(동적 타일/카드, 탭 시 wardId·name 파라미터 전달), `CarePatientDetail`→`/reports/ward/{id}/daily`(기간 7/30/90 선택, todayMetrics 지표). 라이브 백엔드로 WARD daily + 연동 GUARDIAN dashboard/ward-daily 검증. 모두 로딩/빈 상태 처리.
   - `ElderSessionDetail` 추가: `ElderHistory` 세션 탭 → `/reports/{sessionId}` 단건 상세 조회.
-  - **톤 매핑**: 백엔드 riskLevel은 NORMAL/SUSPECTED 2단계뿐 → UI 3단계(ok/caution/danger)는 latestScore<50=danger, SUSPECTED=caution, else ok로 산출.
+  - **톤 매핑**: 백엔드 riskLevel은 NORMAL/SUSPECTED 2단계뿐 → UI 3단계(ok/caution/danger)는 **공통 헬퍼 `src/risk.js`의 `riskTone(score, riskLevel)`**으로 일원화. 기준: 점수<50=danger, (SUSPECTED 또는 50~69)=caution, 그 외 ok. 모든 화면(ElderHome/Result/SessionDetail/History, CareDashboard)이 이 함수를 사용 — 화면별 하드코딩 금지.
   - **필드 공백**: CarePatientDetail의 이동거리/속도 등은 백엔드에 없음 → 평균/범위/대칭/변동성/측정·위험 횟수로 대체. symmetryScore는 analysis가 asymmetryScore 보낼 때만 채워짐(현재 null 가능).
 - [x] **가족연동/프로필/알림 연동** (2026-05-26):
   - `src/api/user.js`(me/updateMe/deviceToken/deleteAccount), `ward.js`(physical-info get/put), `links.js`(코드생성/연결/목록/해제/알림), `location.js`(업로드/스트림URL).
@@ -269,9 +281,11 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
   - 라이브 백엔드로 me/physical-info/guardians/wards/alerts/device-token 전수 검증.
   - **AuthConnect(노약자 가입 중 코드입력 화면)는 미연동**: 백엔드는 WARD가 코드를 *생성*하는 모델이라 "WARD가 코드 입력"은 존재X. 실제 연동은 ElderCaregiver에서 함. 가입 플로우의 AuthConnect는 건너뛰기 단계로 유지.
 - [x] **위치 기본 연동** (2026-05-26) — `expo-location` + `react-native-sse` 추가. `ElderSOS` 길게 누르기 → 현재 위치 권한 요청 후 `POST /api/locations`. `CareLocation` → `/ward-link/wards`로 대상 선택 후 `GET /api/locations/stream/{wardId}` SSE 구독(Authorization 헤더 포함), 최신 좌표/수신 상태 표시. 지도는 아직 정적 SVG 배경(실지도 라이브러리 미적용).
-- [x] **다른 PC 로컬 테스트 자동화** (2026-06-01) — `src/api.js`, `src/api/client.js`의 하드코딩 IP를 `.env.local` 기반 `EXPO_PUBLIC_AI_BASE`, `EXPO_PUBLIC_BACKEND_BASE`로 전환. `scripts/nevo-dev.ps1 -StartBackend`가 `npm install`, Wi-Fi IP 감지, `.env.local` 생성, Docker Postgres/Redis 실행, Backend 실행, AI Python 의존성 설치 및 AI 서버 실행까지 담당. AI 제외 시 `-SkipAi`. 사용 문서는 `docs/LOCAL_TESTING.md`.
+- [x] **서버 주소 런타임 설정** (2026-05-26) — `src/store/serverConfig.js`(백엔드/AI 주소 기본값+오버라이드, load/save/reset). 소비처(`client.js`/`api.js`/`location.js`)를 동적 getter로 전환, 옛 `BACKEND_BASE`/`API_BASE` 상수 제거. 설정 화면 `ServerConfig`(`/server-config`) + 진입점 3곳(AuthChoice 톱니·ElderProfile·CareNotifSettings). 백엔드 기본값을 Render 주소로 교체. → APK 배포 후 IP 변동 시 재빌드 없이 앱에서 주소 변경. (위 "서버 주소 런타임 설정" 섹션 참고)
+- [x] **로컬 테스트 자동화 스크립트** (2026-06-01) — `scripts/nevo-dev.ps1 -StartBackend`가 Wi-Fi IP 감지, Docker Postgres/Redis 실행, Backend/AI 서버 실행까지 담당. 사용 문서는 `docs/LOCAL_TESTING.md`.
+- [ ] **APK 빌드 — EAS 클라우드 채택** (2026-05-26): `eas.json` 생성(profiles: `preview`=standalone APK·내부배포, `development`=dev client, `production`=aab). `app.json`에 `android.package="com.nevo.app"` 추가. 빌드 명령: `npx eas-cli login` → `npx eas-cli build:configure`(최초 projectId 생성) → `npx eas-cli build -p android --profile preview`. ⚠️ preview/release APK는 **cleartext(HTTP) 차단** → AI 서버는 ngrok 등 **HTTPS**로. 로컬 HTTP IP를 APK에서 쓰려면 `expo-build-properties`로 `usesCleartextTraffic` 허용 필요(현재 미적용). dev build(Kotlin IMU·기기 내 TFLite 후속)는 `development` 프로파일 + `expo-dev-client` 설치 시 사용.
 - [ ] **FCM 푸시 미완**: Expo Go 원격푸시 미지원 + 백엔드가 Firebase FCM 토큰 요구 → dev build + google-services.json 필요. `updateDeviceToken()` 함수는 준비됨(등록 검증 완료), 실제 토큰 획득은 dev build 이후.
-- [ ] SQLite 로컬 저장 (expo-sqlite, 오프라인 대비)
+- [ ] SQLite 로컬 저장 (expo-sqlite, 오프라인 대비 — 기기 내 TFLite 전환 시 오프라인 측정 결과 저장→동기화에 사용)
 - [ ] Vercel 실제 배포
 
 > 작업할 때마다 위 체크리스트와 결정사항 표를 갱신할 것.

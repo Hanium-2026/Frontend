@@ -53,8 +53,8 @@ export default function ElderSOS() {
         right={
           <Pressable
             onPress={() => router.back()}
-            style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line }}>
-            <Text style={{ fontSize: 12, fontFamily: T.fontSemiBold, color: T.muted }}>취소</Text>
+            style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line }}>
+            <Text style={{ fontSize: T.fs.caption, fontFamily: T.fontSemiBold, color: T.body }}>취소</Text>
           </Pressable>
         }
       />
@@ -70,7 +70,7 @@ export default function ElderSOS() {
               disabled={sending}
               style={{ position: 'absolute', top: 24, left: 24, right: 24, bottom: 24, borderRadius: 92, backgroundColor: T.danger, alignItems: 'center', justifyContent: 'center', shadowColor: T.danger, shadowOffset: { width: 0, height: 16 }, shadowOpacity: 0.45, shadowRadius: 40, elevation: 20 }}>
               {sending ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: 52, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -2, lineHeight: 52 }}>SOS</Text>}
-              <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: '#fff', marginTop: 6 }}>{sending ? '전송 중' : '꾹 눌러서 전송'}</Text>
+              <Text style={{ fontSize: T.fs.sub, fontFamily: T.fontBold, color: '#fff', marginTop: 6 }}>{sending ? '전송 중' : '꾹 눌러서 전송'}</Text>
             </Pressable>
             <Svg width={232} height={232} viewBox="0 0 232 232" style={{ position: 'absolute' }}>
               <Circle cx="116" cy="116" r="92" stroke={T.danger} strokeWidth="3" fill="none"
@@ -78,7 +78,7 @@ export default function ElderSOS() {
                 transform="rotate(-90 116 116)" opacity="0.9"/>
             </Svg>
           </View>
-          <Text style={{ marginTop: 20, fontSize: 14, color: T.muted, textAlign: 'center', lineHeight: 22, paddingHorizontal: 32 }}>
+          <Text style={{ marginTop: 20, fontSize: T.fs.body, color: T.body, textAlign: 'center', lineHeight: 25, paddingHorizontal: 32 }}>
             <Text style={{ color: T.danger, fontFamily: T.fontBold }}>길게 누르면 위치가 전송</Text>됩니다.{'\n'}
             보호자 위치 화면에서 최신 위치를 확인할 수 있어요.
           </Text>
@@ -95,8 +95,8 @@ export default function ElderSOS() {
                     <I width={18} height={18} color={T.danger}/>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.ink }}>{c.t}</Text>
-                    <Text style={{ fontSize: 12, color: T.muted, marginTop: 1 }}>{c.s}</Text>
+                    <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>{c.t}</Text>
+                    <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: 3 }}>{c.s}</Text>
                   </View>
                   <Icon.check width={20} height={20} color={T.danger}/>
                 </View>
