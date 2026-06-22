@@ -1,6 +1,8 @@
 ﻿import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import T from '../../tokens';
+import Icon from '../../icons';
 import Card from '../../components/Card';
 import SectionLabel from '../../components/SectionLabel';
 import AppHeader from '../../components/AppHeader';
@@ -35,6 +37,7 @@ function Row({ label, sub, on, last }) {
 }
 
 export default function CareNotifSettings() {
+  const router = useRouter();
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <AppHeader title="알림 설정" onBack/>
@@ -79,6 +82,17 @@ export default function CareNotifSettings() {
             <Text style={{ fontSize: 11.5, color: T.muted, marginTop: 8 }}>긴급/낙상 알림은 항상 전달됩니다.</Text>
           </View>
           <Row label="진동만 사용" on={false} last/>
+        </Card>
+
+        <SectionLabel>개발자</SectionLabel>
+        <Card pad={0} style={{ borderRadius: 18 }}>
+          <Pressable onPress={() => router.push('/server-config')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#EEF0F4', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon.settings width={18} height={18} color={T.muted}/>
+            </View>
+            <Text style={{ flex: 1, fontSize: 14, fontFamily: T.fontSemiBold, color: T.ink }}>서버 설정</Text>
+            <Icon.chevron width={14} height={14} color={T.muted}/>
+          </Pressable>
         </Card>
       </ScrollView>
 

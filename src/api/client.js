@@ -1,9 +1,10 @@
 // NEVO backend (Spring) API client.
 // Separate from the AI score server in src/api.js (:8000).
 import { tokenStore } from '../store/tokenStore';
+import { serverConfig } from '../store/serverConfig';
 
-// Set EXPO_PUBLIC_BACKEND_BASE in .env.local for Expo Go phone tests.
-export const BACKEND_BASE = process.env.EXPO_PUBLIC_BACKEND_BASE || 'http://localhost:8080';
+// 백엔드 주소는 런타임 설정(serverConfig)에서 가져온다. 기본값/오버라이드 모두 거기서 관리.
+const backendBase = () => serverConfig.getBackendBase();
 
 const PUBLIC_PATHS = [
   '/api/auth/sms/send',
@@ -35,7 +36,7 @@ async function refreshTokens() {
   if (!refreshToken) throw new ApiError({ status: 401, code: 'NO_REFRESH_TOKEN' });
 
   _refreshing = (async () => {
-    const res = await fetch(`${BACKEND_BASE}/api/auth/refresh`, {
+    const res = await fetch(`${backendBase()}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
@@ -67,7 +68,7 @@ async function request(method, path, body, { _retried = false } = {}) {
     if (access) headers.Authorization = `Bearer ${access}`;
   }
 
-  const res = await fetch(`${BACKEND_BASE}${path}`, {
+  const res = await fetch(`${backendBase()}${path}`, {
     method,
     headers,
     body: body == null ? undefined : JSON.stringify(body),
