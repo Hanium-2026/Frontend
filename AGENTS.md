@@ -2,7 +2,7 @@
 
 > 이 문서는 에이전트(CODEX / Claude)가 읽고 작업하는 **단일 기준 문서**입니다.
 > 작업 상황·결정사항·연동 진행도를 여기에 계속 기록합니다.
-> 최종 업데이트: 2026-05-26
+> 최종 업데이트: 2026-06-25
 
 ---
 
@@ -16,7 +16,8 @@ Expo는 버전마다 API가 자주 바뀜. 추측으로 작성 금지.
 ## 프로젝트 개요
 
 - **앱**: NEVO — IMU 기반 보행 분석 앱 (노인 보행 패턴 → 뇌 건강·낙상 위험 모니터링)
-- **목표**: iOS App Store + Google Play 출시 / 중간 목표 Vercel 웹 데모
+- **목표**: **Android 전용** Google Play 출시. (iOS / 웹 / Vercel 데모는 폐기 — 2026-06-25)
+- **AI 추론**: **on-device** 방향 (TF1 walk/not-walk → TF2 normal/abnormal를 폰에서 직접 추론). 현재 코드는 아직 별도 AI 서버(`:8000`) 방식 → 전환 예정.
 - **역할 구분**: WARD(노인) / GUARDIAN(보호자) — 백엔드 JWT 역할과 1:1 대응
 
 ## 기술 스택
@@ -31,8 +32,7 @@ Expo는 버전마다 API가 자주 바뀜. 추측으로 작성 금지.
 | 폰트 | Pretendard (expo-font 로드) |
 | 센서 | expo-sensors (가속도·자이로) |
 | 위치/실시간 | expo-location, react-native-sse |
-| 웹 빌드 | `npx expo export -p web` → dist/ |
-| 배포 | Vercel (vercel.json 완료) |
+| 배포 | Google Play (Android 전용) — 웹/Vercel 폐기 |
 
 ## 프로젝트 구조
 
@@ -207,7 +207,10 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 
 ---
 
-## AI 추론 서버 연동 (세션 API와 별개)
+## AI 추론 (세션 API와 별개)
+
+> **방향 (2026-06-25): on-device 전환 예정.** 모델(TF1/TF2)을 폰에서 직접 추론하는 구조가 목표.
+> 아래 내용은 **현재 구현(별도 AI 서버 방식)** 기준이며, on-device 전환 시 이 섹션을 교체한다.
 
 - `src/api.js` → `POST http://<노트북IP>:8000/score` (nevo-ai FastAPI)
 - 입력: 가속도+자이로 128샘플(2.56초) 윈도우 → 출력: `{activityState, score, riskLevel, cadence}`
@@ -247,6 +250,7 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 | 2026-06-01 | 다른 PC Expo Go 테스트를 쉽게 하기 위해 `scripts/nevo-dev.ps1` + `docs/LOCAL_TESTING.md` 추가. `-StartBackend` 실행 시 AI 서버도 자동 실행 |
 | 2026-06-22 | **노인 친화 + 공모전 임팩트 UI 개선 착수**. ElderHome 재설계(점수 히어로 링 120px·카운트업 애니메이션, 본문 14~17px 확대, 측정 버튼 풀폭 72px, 대비 강화). **위험도 색 기준을 `src/risk.js`로 일원화** — 점수<50=위험/SUSPECTED·50~69=주의/그외 안정. 노인 화면도 이제 위험(빨강) 표시. |
 | 2026-06-22 | **노인 친화 타입 스케일 토큰 도입** — `tokens.js`에 `T.fs`(display44/title26/h20/body17/sub16/label15/caption14, **9~13px 본문 금지**)·`T.tap`(56) 추가. 노인 화면 전체(Home·Measure·Result·History·SessionDetail·Caregiver·Profile·ProfileEdit·SOS·Onboarding)에 일괄 적용: 본문 17px+, 캡션 14px+, 중요 정보는 `muted` 회색 대신 `ink/body`로 대비 확보, 주 버튼/터치 56px. 측정 화면 = 결과 화면과 같은 파랑 히어로 언어로 통일. 신규 화면 작성 시 인라인 숫자 대신 `T.fs`/`T.tap` 사용할 것. |
+| 2026-06-25 | **AI 서버(:8000) 폐기 + on-device 신규 작성 착수**. 전환기 서버 추론을 끝내고 기기 내 TFLite로 새로 구현. ② **Android 전용 확정**(iOS/웹 타깃 폐기) ③ **Vercel 웹 데모 폐기** ④ FCM 푸시는 유지(Android dev build + google-services.json). |
 
 ---
 
@@ -285,7 +289,9 @@ cd <Backend>; $env:DB_PORT="5433"; .\gradlew.bat bootRun
 - [x] **로컬 테스트 자동화 스크립트** (2026-06-01) — `scripts/nevo-dev.ps1 -StartBackend`가 Wi-Fi IP 감지, Docker Postgres/Redis 실행, Backend/AI 서버 실행까지 담당. 사용 문서는 `docs/LOCAL_TESTING.md`.
 - [ ] **APK 빌드 — EAS 클라우드 채택** (2026-05-26): `eas.json` 생성(profiles: `preview`=standalone APK·내부배포, `development`=dev client, `production`=aab). `app.json`에 `android.package="com.nevo.app"` 추가. 빌드 명령: `npx eas-cli login` → `npx eas-cli build:configure`(최초 projectId 생성) → `npx eas-cli build -p android --profile preview`. ⚠️ preview/release APK는 **cleartext(HTTP) 차단** → AI 서버는 ngrok 등 **HTTPS**로. 로컬 HTTP IP를 APK에서 쓰려면 `expo-build-properties`로 `usesCleartextTraffic` 허용 필요(현재 미적용). dev build(Kotlin IMU·기기 내 TFLite 후속)는 `development` 프로파일 + `expo-dev-client` 설치 시 사용.
 - [ ] **FCM 푸시 미완**: Expo Go 원격푸시 미지원 + 백엔드가 Firebase FCM 토큰 요구 → dev build + google-services.json 필요. `updateDeviceToken()` 함수는 준비됨(등록 검증 완료), 실제 토큰 획득은 dev build 이후.
+- [ ] **AI on-device 전환** (기기 내 TFLite — `:8000` 서버 방식 폐기·대체. dev build 전제)
 - [ ] SQLite 로컬 저장 (expo-sqlite, 오프라인 대비 — 기기 내 TFLite 전환 시 오프라인 측정 결과 저장→동기화에 사용)
-- [ ] Vercel 실제 배포
+- [ ] Google Play 출시 (Android 전용)
+- [~] ~~Vercel 실제 배포~~ — 폐기 (2026-06-25)
 
 > 작업할 때마다 위 체크리스트와 결정사항 표를 갱신할 것.

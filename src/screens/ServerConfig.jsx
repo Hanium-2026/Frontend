@@ -3,30 +3,27 @@ import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Pla
 import { useRouter } from 'expo-router';
 import T from '../tokens';
 import Icon from '../icons';
-import { serverConfig, DEFAULT_BACKEND_BASE, DEFAULT_AI_BASE } from '../store/serverConfig';
+import { serverConfig, DEFAULT_BACKEND_BASE } from '../store/serverConfig';
 
-// 서버 주소 설정 화면. AI 추론 서버 주소가 자주 바뀌므로(LAN IP·ngrok 터널 등)
+// 백엔드 서버 주소 설정 화면. 로컬 테스트 시 노트북 LAN IP로 바꾸는 등
 // APK 재빌드 없이 여기서 주소를 바꿔 저장한다.
 export default function ServerConfig() {
   const router = useRouter();
   const [backend, setBackend] = useState(serverConfig.getBackendBase());
-  const [ai, setAi] = useState(serverConfig.getAiBase());
 
   const handleSave = async () => {
-    await serverConfig.save({ backendBase: backend, aiBase: ai });
+    await serverConfig.save({ backendBase: backend });
     // 저장 시 normalize된 최종값으로 입력칸도 맞춰준다.
     setBackend(serverConfig.getBackendBase());
-    setAi(serverConfig.getAiBase());
     Alert.alert('저장 완료', '서버 주소가 저장됐어요. 새 주소로 바로 연결됩니다.');
   };
 
   const handleReset = () => {
-    Alert.alert('기본값으로 초기화', '백엔드·AI 서버 주소를 기본값으로 되돌릴까요?', [
+    Alert.alert('기본값으로 초기화', '백엔드 서버 주소를 기본값으로 되돌릴까요?', [
       { text: '취소', style: 'cancel' },
       { text: '초기화', style: 'destructive', onPress: async () => {
         await serverConfig.reset();
         setBackend(serverConfig.getBackendBase());
-        setAi(serverConfig.getAiBase());
       } },
     ]);
   };
@@ -62,19 +59,13 @@ export default function ServerConfig() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 12 }} keyboardShouldPersistTaps="handled">
           <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, lineHeight: 30 }}>서버 주소</Text>
           <Text style={{ fontSize: 13, color: T.muted, marginTop: 8, lineHeight: 20 }}>
-            AI 추론 서버 IP나 터널 주소가 바뀌면 여기서 바꿔 저장하세요. 앱을 다시 설치할 필요 없어요.
+            백엔드 서버 IP가 바뀌면 여기서 바꿔 저장하세요. 앱을 다시 설치할 필요 없어요.
           </Text>
 
           {field(
             '백엔드 서버',
-            '로그인·세션·리포트 등 (Render 배포). 보통 바꿀 필요 없어요.',
+            '로그인·세션·리포트 등. 로컬 테스트 시 노트북 LAN IP(http://192.168.x.x:8080)로 변경.',
             backend, setBackend, DEFAULT_BACKEND_BASE,
-          )}
-
-          {field(
-            'AI 추론 서버',
-            '보행 점수 계산 서버. 노트북 LAN IP(http://172.x.x.x:8000) 또는 ngrok 터널(https://xxxx.ngrok.app).',
-            ai, setAi, DEFAULT_AI_BASE,
           )}
 
           <Pressable onPress={handleReset} style={{ marginTop: 24, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
