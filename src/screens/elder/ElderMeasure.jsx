@@ -9,7 +9,7 @@ import Icon from '../../icons';
 import Card from '../../components/Card';
 import IMUTrace from '../../components/IMUTrace';
 import SparkLine from '../../components/SparkLine';
-import { scoreWindow } from '../../api';
+import { useGaitPipeline } from '../../ml/useGaitPipeline';
 import { sessionStore } from '../../store/sessionStore';
 import { tokenStore } from '../../store/tokenStore';
 import { ensureSession, uploadData, stopSession, uploadAnalysis, toMinuteAt } from '../../api/session';
@@ -61,8 +61,16 @@ export default function ElderMeasure() {
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
   const sinceRef = useRef(0);         // 마지막 전송 이후 쌓인 샘플 수
-  const inflightRef = useRef(false);
   const accRef = useRef({ scores: [], cadences: [], suspected: 0 });  // 세션 누적(걷기만)
+
+  // on-device 추론 파이프라인(1차 동작분류 → 2차 정상/이상). dev build에서만 모델 로드됨.
+  const { ready: modelReady, error: modelError, analyze } = useGaitPipeline();
+  const analyzeRef = useRef(null);
+  useEffect(() => { analyzeRef.current = analyze; });
+  useEffect(() => {
+    if (modelError) setStatus('모델 로드 실패 — 개발 빌드 필요');
+    else if (modelReady) setStatus('걸으면 측정이 시작돼요');
+  }, [modelReady, modelError]);
 
   // 백엔드 세션 연동(로그인된 WARD만). 점수 계산은 AI 서버, 분당 집계만 백엔드로 업로드.
   const useBackend = tokenStore.isLoggedIn() && tokenStore.getRole() === 'WARD';
@@ -102,49 +110,48 @@ export default function ElderMeasure() {
       if (buf.length > 256) buf.splice(0, buf.length - 256);  // 메모리 캡 (슬라이딩)
       sinceRef.current += 1;
 
-      if (buf.length >= WINDOW &&
-          sinceRef.current >= STRIDE &&
-          !inflightRef.current) {
+      if (buf.length >= WINDOW && sinceRef.current >= STRIDE) {
         sinceRef.current = 0;
         const win = buf.slice(buf.length - WINDOW);
-        inflightRef.current = true;
-        setStatus('분석 중...');
-        scoreWindow(win)
-          .then((r) => {
-            if (!r) { setStatus('응답 오류'); return; }
-            if (r.activityState === 'WALKING' && r.score != null) {
-              setResult(r);
-              setCount((c) => c + 1);
-              setStatus('측정 중');
-              const a = accRef.current;
-              a.scores.push(r.score);
-              a.cadences.push(r.cadence ?? 0);
-              if (r.riskLevel === 'SUSPECTED') a.suspected += 1;
-              setScoreHist((h) => [...h, Math.round(r.score)]);
+        const run = analyzeRef.current;
+        if (!run) { setStatus('모델 준비 중...'); return; }
 
-              // 분당 집계: 분이 바뀌면 직전 분을 백엔드로 업로드(중복 전송은 서버가 무시)
-              if (useBackend) {
-                const key = toMinuteAt();
-                const m = minuteRef.current;
-                if (m.key && m.key !== key && m.scores.length) {
-                  const sid = sessionIdRef.current;
-                  if (sid) uploadData(sid, [aggregateMinute(m)]).catch(() => {});
-                  minuteRef.current = { key, scores: [r.score], danger: r.riskLevel === 'SUSPECTED' ? 1 : 0 };
-                } else {
-                  if (!m.key) m.key = key;
-                  m.scores.push(r.score);
-                  if (r.riskLevel === 'SUSPECTED') m.danger += 1;
-                }
-              }
-            } else if (r.activityState === 'STATIONARY') {
-              setResult({ activityState: 'STATIONARY' });
-              setStatus('정지 · 보행 대기');
+        let r;
+        try { r = run(win); } catch { setStatus('분석 오류'); return; }
+        if (!r) { setStatus('모델 준비 중...'); return; }
+
+        if (r.activityState === 'WALKING' && r.score != null) {
+          setResult(r);
+          setCount((c) => c + 1);
+          setStatus('측정 중');
+          const a = accRef.current;
+          a.scores.push(r.score);
+          a.cadences.push(r.cadence ?? 0);
+          if (r.riskLevel === 'SUSPECTED') a.suspected += 1;
+          setScoreHist((h) => [...h, Math.round(r.score)]);
+
+          // 분당 집계: 분이 바뀌면 직전 분을 백엔드로 업로드(중복 전송은 서버가 무시)
+          if (useBackend) {
+            const key = toMinuteAt();
+            const m = minuteRef.current;
+            if (m.key && m.key !== key && m.scores.length) {
+              const sid = sessionIdRef.current;
+              if (sid) uploadData(sid, [aggregateMinute(m)]).catch(() => {});
+              minuteRef.current = { key, scores: [r.score], danger: r.riskLevel === 'SUSPECTED' ? 1 : 0 };
             } else {
-              setStatus('대기 중 (샘플 부족)');
+              if (!m.key) m.key = key;
+              m.scores.push(r.score);
+              if (r.riskLevel === 'SUSPECTED') m.danger += 1;
             }
-          })
-          .catch(() => setStatus('서버 연결 실패 — IP/같은 WiFi 확인'))
-          .finally(() => { inflightRef.current = false; });
+          }
+        } else if (r.activityState === 'STATIONARY') {
+          setResult({ activityState: 'STATIONARY' });
+          setStatus('정지 · 보행 대기');
+        } else {
+          // 걷기 아님(뛰기/계단 등) — 동작만 표시, 점수 집계 제외
+          setResult(r);
+          setStatus(`${ACTIVITY_LABELS[r.activityClass] ?? '동작'} 감지`);
+        }
       }
     });
 
