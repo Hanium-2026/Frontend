@@ -2,16 +2,17 @@ param(
   [string]$BackendPath,
   [switch]$SkipInstall,
   [switch]$SkipDocker,
-  [switch]$StartBackend,
-  [switch]$StartAi,
-  [switch]$SkipAi,
-  [switch]$SkipAiInstall
+  [switch]$StartBackend
 )
+
+# 로컬 백엔드 개발 환경 기동: Wi-Fi IP 감지 → Docker(Postgres/Redis) → Backend(Spring).
+# 앱은 백엔드 주소를 src/store/serverConfig.js 기본값(또는 앱 내 서버설정 화면)에서 읽는다.
+# 실기기 테스트 시 아래 출력되는 IP를 serverConfig.js DEFAULT_BACKEND_BASE에 반영하거나
+# 앱 서버설정 화면에서 입력할 것. (AI 추론은 on-device로 전환되어 별도 AI 서버 없음)
 
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $DevDir = Join-Path $Root ".dev"
-$ShouldStartAi = ($StartBackend -or $StartAi) -and -not $SkipAi
 
 function Write-Step($Message) {
   Write-Host ""
@@ -80,10 +81,6 @@ if (-not $SkipDocker -and -not (Test-Command "docker")) {
   throw "docker was not found. Install Docker Desktop, then retry."
 }
 
-if ($ShouldStartAi -and -not (Test-Command "python")) {
-  throw "python was not found. Install Python, then retry."
-}
-
 if (-not $SkipInstall) {
   Write-Step "Installing frontend dependencies"
   Push-Location $Root
@@ -92,16 +89,6 @@ if (-not $SkipInstall) {
 }
 
 $lanIp = Get-LanIp
-$envPath = Join-Path $Root ".env.local"
-$envContent = @"
-EXPO_PUBLIC_BACKEND_BASE=http://$lanIp`:8080
-EXPO_PUBLIC_AI_BASE=http://$lanIp`:8000
-"@
-Set-Content -Path $envPath -Value $envContent -Encoding UTF8
-
-Write-Step "Generated .env.local"
-Write-Host "EXPO_PUBLIC_BACKEND_BASE=http://$lanIp`:8080"
-Write-Host "EXPO_PUBLIC_AI_BASE=http://$lanIp`:8000"
 
 if (-not $SkipDocker) {
   Write-Step "Preparing Docker containers"
@@ -145,33 +132,10 @@ if ($StartBackend) {
   Write-Host "Log: $backendLog"
 }
 
-if ($ShouldStartAi) {
-  Write-Step "Starting AI score server"
-
-  if (-not $SkipAiInstall) {
-    Write-Step "Installing AI Python dependencies"
-    Push-Location $Root
-    python -m pip install -r requirements-ai.txt
-    Pop-Location
-  }
-
-  New-Item -ItemType Directory -Force -Path $DevDir | Out-Null
-  $aiLog = Join-Path $DevDir "ai.log"
-  if (Test-PortListening 8000) {
-    Write-Host "AI score server already appears to be listening on port 8000."
-  } else {
-    $aiCommand = "`$env:PYTHONUNBUFFERED='1'; python scripts\nevo_score_server.py *> `"$aiLog`""
-    Start-Process powershell -WindowStyle Hidden -WorkingDirectory $Root -ArgumentList @(
-      "-ExecutionPolicy", "Bypass",
-      "-Command", $aiCommand
-    )
-  }
-  Write-Host "AI: http://$lanIp`:8000"
-  Write-Host "Log: $aiLog"
-}
-
 Write-Step "Next steps"
-Write-Host "1. Check backend: http://$lanIp`:8080/swagger-ui/index.html"
-Write-Host "2. Check AI score server: http://$lanIp`:8000"
-Write-Host "3. Start Expo: npx expo start"
-Write-Host "4. Scan the QR code with Expo Go. Phone and PC must be on the same Wi-Fi."
+Write-Host "1. This PC LAN IP: $lanIp"
+Write-Host "   -> Set src/store/serverConfig.js DEFAULT_BACKEND_BASE to http://$lanIp`:8080"
+Write-Host "      (or change it in the app's server-settings screen)."
+Write-Host "2. Check backend: http://$lanIp`:8080/swagger-ui/index.html"
+Write-Host "3. Dev build app on the phone, then: npx expo start --dev-client"
+Write-Host "   (Phone and PC must be on the same Wi-Fi.)"
