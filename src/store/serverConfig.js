@@ -6,7 +6,7 @@ import { getItem, setItem, removeItem } from './storage';
 const BACKEND_KEY = 'nevo.serverConfig.backend';
 
 // 백엔드(Spring) — 현재 로컬 PC LAN IP(추후 배포 주소로 교체 예정).
-export const DEFAULT_BACKEND_BASE = 'http://192.168.219.102:8080';
+export const DEFAULT_BACKEND_BASE = 'http://192.168.219.103:8080';
 
 let _backend = DEFAULT_BACKEND_BASE;
 
