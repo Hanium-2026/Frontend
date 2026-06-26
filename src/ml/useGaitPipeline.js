@@ -3,6 +3,7 @@
 //  2차: 걷는 중일 때만 정상/이상 보행 판정 → 점수/위험도 산출
 // react-native-fast-tflite 필요(네이티브) → dev build에서만 동작. Expo Go에서는 모델 로드 실패.
 import { useEffect, useRef, useState } from 'react';
+import { Asset } from 'expo-asset';
 import { loadTensorflowModel } from 'react-native-fast-tflite';
 import {
   resampleTo100,
@@ -26,17 +27,31 @@ export function useGaitPipeline() {
 
   useEffect(() => {
     let alive = true;
+    const loadOne = async (label, mod) => {
+      console.log(`[gait] loading ${label}...`);
+      // 모델을 로컬 파일로 받아 file:// 경로로 로드한다. fast-tflite 네이티브는 URL(path).readBytes()로
+      // 읽는데, dev에서 metro HTTP 자산 URL은 못 가져와 undefined가 됨. expo-asset이 dev에선 metro에서
+      // 캐시로 내려받고(프로덕션은 번들 로컬을 그대로 가리킴) localUri(file://)를 준다.
+      const asset = Asset.fromModule(mod);
+      if (!asset.downloaded) await asset.downloadAsync();
+      const uri = asset.localUri || asset.uri;
+      console.log(`[gait] ${label} uri: ${uri}`);
+      const m = await loadTensorflowModel({ url: uri });
+      console.log(`[gait] loaded ${label} OK`);
+      return m;
+    };
     (async () => {
       try {
-        const [m1, m2] = await Promise.all([
-          loadTensorflowModel(require('../../assets/models/gait_stage1_activity.tflite')),
-          loadTensorflowModel(require('../../assets/models/gait_stage2_gait.tflite')),
-        ]);
+        console.log('[gait] pipeline init');
+        const m1 = await loadOne('stage1', require('../../assets/models/gait_stage1_activity.tflite'));
+        const m2 = await loadOne('stage2', require('../../assets/models/gait_stage2_gait.tflite'));
         if (!alive) return;
         stage1Ref.current = m1;
         stage2Ref.current = m2;
         setReady(true);
+        console.log('[gait] pipeline ready');
       } catch (e) {
+        console.log('[gait] LOAD FAILED:', e?.message || String(e));
         if (alive) setError(e?.message || String(e));
       }
     })();
