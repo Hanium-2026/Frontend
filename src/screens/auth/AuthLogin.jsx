@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { login } from '../../api/auth';
@@ -8,6 +9,7 @@ import { ApiError } from '../../api/client';
 
 export default function AuthLogin() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
@@ -31,7 +33,7 @@ export default function AuthLogin() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={{ flex: 1, backgroundColor: '#fff' }}>
-        <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
             <Icon.arrowLeft width={18} height={18} color={T.ink}/>
           </Pressable>
@@ -74,7 +76,7 @@ export default function AuthLogin() {
           </Pressable>
         </ScrollView>
 
-        <View style={{ padding: 20, paddingBottom: 36 }}>
+        <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
           <Pressable onPress={handleLogin} disabled={!canSubmit} style={{ height: 58, borderRadius: 14, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
             {busy
               ? <ActivityIndicator color="#fff"/>

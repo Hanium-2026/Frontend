@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Avatar from '../../components/Avatar';
@@ -17,6 +18,7 @@ function StepBar({ step, total = 6 }) {
 
 export default function AuthConnect() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [code, setCode] = useState('');
   const isComplete = code.length === 4;
 
@@ -29,7 +31,7 @@ export default function AuthConnect() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
           <Icon.arrowLeft width={18} height={18} color={T.ink}/>
         </Pressable>
@@ -86,7 +88,7 @@ export default function AuthConnect() {
         )}
       </View>
 
-      <View style={{ padding: 20, paddingBottom: 36, gap: 10 }}>
+      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), gap: 10 }}>
         <Pressable onPress={() => router.push('/(auth)/welcome')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>{isComplete ? '연결하기' : '나중에 연결할게요'}</Text>
         </Pressable>

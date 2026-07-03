@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useFocusEffect, useRouter } from 'expo-router';
 import T from '../../tokens';
@@ -31,15 +31,11 @@ const statusOf = (score) => {
 
 const ELDER_TABS = [
   { icon: 'home', label: '홈', path: '/(elder)/' },
-  { icon: 'walk', label: '걷기', path: '/(elder)/measure' },
+  { icon: 'walk', label: '걷기', path: '/(elder)/measure-intro' },
   { icon: 'history', label: '기록', path: '/(elder)/history' },
   { icon: 'family', label: '보호자', path: '/(elder)/caregiver' },
   { icon: 'user', label: '내정보', path: '/(elder)/profile' },
 ];
-
-const RING = 120;
-const R = 50;
-const CIRC = 2 * Math.PI * R; // 314.16
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -69,6 +65,18 @@ export default function ElderHome() {
   const todayScore = trend.length ? trend[trend.length - 1] : null;
   const status = statusOf(todayScore);
 
+  // 화면 높이에 맞춰 상단 블록·점수 링을 줄여, 작은 폰에서도 본문이 한 화면에 들어오도록 한다.
+  // (작은 폰 = 컴팩트. 아래 숫자는 실기기에서 보고 미세조정하면 됨)
+  const { height: winH } = useWindowDimensions();
+  const compact = winH < 760;
+  const topMinH = compact ? 208 : 248;   // 상단 파란 블록 최소 높이 (기존 296)
+  const topPadB = compact ? 18 : 28;     // 블록 안쪽 하단 여백 (기존 44)
+  const RING = compact ? 96 : 116;       // 점수 링 지름 (기존 120)
+  const R = RING / 2 - 10;               // 링 반지름(획 두께 10 고려)
+  const CIRC = 2 * Math.PI * R;
+  const scoreFs = compact ? 38 : 44;     // 큰 점수 글자 (기존 44)
+  const gap = compact ? 10 : 14;         // 본문 카드 간 간격 (기존 14~18)
+
   // 점수 카운트업 + 링 채우기 (데모 임팩트 + 변화 이해 도움)
   const progress = useRef(new Animated.Value(0)).current;
   const [display, setDisplay] = useState(0);
@@ -94,7 +102,7 @@ export default function ElderHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <ElderTopBlock minHeight={296}>
+      <ElderTopBlock minHeight={topMinH} padBottom={topPadB}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 16, color: 'rgba(255,255,255,0.9)', fontFamily: T.font }}>오늘도 함께 걸어요</Text>
@@ -108,7 +116,7 @@ export default function ElderHome() {
           </Pressable>
         </View>
 
-        <View style={{ marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+        <View style={{ marginTop: compact ? 14 : 20, flexDirection: 'row', alignItems: 'center', gap: 20 }}>
           <View style={{ width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
             <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`}>
               <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.22)" strokeWidth="10" fill="none"/>
@@ -118,7 +126,7 @@ export default function ElderHome() {
                 transform={`rotate(-90 ${RING / 2} ${RING / 2})`}/>
             </Svg>
             <View style={{ position: 'absolute', alignItems: 'center' }}>
-              <Text style={{ fontSize: 44, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1 }}>
+              <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1 }}>
                 {todayScore == null ? '--' : display}
               </Text>
               <Text style={{ fontSize: 14, fontFamily: T.font, color: 'rgba(255,255,255,0.75)', marginTop: -2 }}>/ 100점</Text>
@@ -140,9 +148,9 @@ export default function ElderHome() {
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {/* 주요 행동: 측정 시작 — 풀폭 큰 버튼 */}
-        <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: compact ? 12 : 18 }}>
           <Pressable
-            onPress={() => router.push('/(elder)/measure')}
+            onPress={() => router.push('/(elder)/measure-intro')}
             style={({ pressed }) => ({
               borderRadius: 20, backgroundColor: pressed ? T.blueDark : T.blue,
               paddingVertical: 18, paddingHorizontal: 20,
@@ -161,7 +169,7 @@ export default function ElderHome() {
         </View>
 
         {/* 보호자 연결 */}
-        <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: gap }}>
           <Pressable onPress={() => router.push('/(elder)/caregiver')}>
             <Card pad={16} style={{ borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               {guardianCount > 0 ? (
@@ -191,7 +199,7 @@ export default function ElderHome() {
         </View>
 
         {/* 이번 주 추이 — 기록 있으면 차트, 없으면 측정 안내 */}
-        <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+        <View style={{ paddingHorizontal: 16, marginTop: gap }}>
           {trend.length > 0 ? (
             <Pressable onPress={() => router.push('/(elder)/history')}>
               <Card pad={18} style={{ borderRadius: 20 }}>
@@ -209,7 +217,7 @@ export default function ElderHome() {
                   </View>
                 </View>
                 <View style={{ marginTop: 14 }}>
-                  <BarChart data={trend} width={300} height={104} color={T.blue} max={100} labels={dayLabels}/>
+                  <BarChart data={trend} height={104} color={T.blue} max={100} labels={dayLabels}/>
                 </View>
               </Card>
             </Pressable>

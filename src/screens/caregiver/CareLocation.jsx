@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import Svg, { Rect, Path, Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EventSource from 'react-native-sse';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -30,6 +31,7 @@ function fmtWhen(iso) {
 
 export default function CareLocation() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const sourceRef = useRef(null);
   const [wards, setWards] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -124,7 +126,7 @@ export default function CareLocation() {
           <Circle cx="250" cy="330" r="5" fill="#fff"/>
         </Svg>
 
-        <View style={{ position: 'absolute', top: 54, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+        <View style={{ position: 'absolute', top: insets.top + 10, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
           <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 }}>
             <Icon.arrowLeft width={18} height={18} color={T.body}/>
           </Pressable>

@@ -1,18 +1,20 @@
 ﻿import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { authStore } from '../../store/authStore';
 
 export default function AuthWelcome() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { name, role } = authStore.get();
   const displayName = name || '사용자';
   const dest = role === 'caregiver' ? '/(caregiver)/' : '/(elder)/';
   return (
     <View style={{ flex: 1, backgroundColor: T.blue }}>
-      <View style={{ flex: 1, paddingTop: 180, paddingHorizontal: 32, alignItems: 'center' }}>
+      <View style={{ flex: 1, paddingTop: insets.top + 136, paddingHorizontal: 32, alignItems: 'center' }}>
         <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.2, shadowRadius: 60, elevation: 12 }}>
           <Icon.check width={56} height={56} color={T.blue}/>
         </View>
@@ -38,7 +40,7 @@ export default function AuthWelcome() {
         </View>
       </View>
 
-      <View style={{ padding: 20, paddingBottom: 40 }}>
+      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24) }}>
         <Pressable onPress={() => router.replace(dest)} style={{ height: 58, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: T.blue }}>NEVO 시작하기</Text>
         </Pressable>

@@ -50,7 +50,7 @@ export default function CareReport() {
 
               <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 8, padding: 10, borderWidth: 1, borderColor: T.line }}>
                 <Text style={{ fontSize: 9, color: T.muted, fontFamily: T.fontBold, marginBottom: 4 }}>30-DAY TREND</Text>
-                <SparkLine data={trendData} width={280} height={50} color={T.blue}/>
+                <SparkLine data={trendData} height={50} color={T.blue}/>
               </View>
 
               <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>

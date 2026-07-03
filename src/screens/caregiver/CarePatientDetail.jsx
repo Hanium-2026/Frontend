@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import Svg, { G, Line, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
@@ -18,6 +19,7 @@ const PERIODS = [['7일', 7], ['30일', 30], ['3개월', 90]];
 
 export default function CarePatientDetail() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const wardId = params.wardId;
   const name = params.name || '노약자';
@@ -80,7 +82,7 @@ export default function CarePatientDetail() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <View style={{ paddingTop: 54, paddingBottom: 14, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ paddingTop: insets.top + 12, paddingBottom: 14, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
           <Icon.arrowLeft width={18} height={18} color={T.body}/>
         </Pressable>

@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Accelerometer, Gyroscope } from 'expo-sensors';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -28,35 +29,30 @@ const aggregateMinute = (m) => ({
   dangerCount: m.danger,
 });
 
-const ACTIVITY_LABELS = {
-  downstairs: '계단 내려감',
-  running: '뛰기',
-  sitting: '앉음',
-  standing: '서 있음',
-  upstairs: '계단 오름',
-  walking: '걷기',
-  stationary: '정지',
-};
-
-const formatActivity = (result) => {
-  const activity = result?.activityClass;
-  if (!activity) return '대기';
-  const label = ACTIVITY_LABELS[activity] ?? activity;
-  const confidence = typeof result?.activityConfidence === 'number'
-    ? ` ${Math.round(result.activityConfidence * 100)}%`
-    : '';
-  return `${label}${confidence}`;
+// 단일 보행 모델: 동작분류 없이 정지/측정준비/걷기/대기만 구분.
+const stateLabel = (result) => {
+  if (result?.activityState === 'STATIONARY') return '정지';
+  if (result?.activityState === 'WARMUP') return '측정 준비';
+  if (result?.score != null) return '걷기';
+  return '대기';
 };
 
 // 파랑 히어로 위에서 잘 보이는 밝은 위험도 톤 (ElderResult와 동일 팔레트)
 const TONE_DOT = { ok: '#86E3C1', caution: '#FFB4A2', danger: '#FCA5A5', idle: 'rgba(255,255,255,0.6)' };
 
-const RING = 220;
-const R = 96;
-const CIRC = 2 * Math.PI * R; // 603.2
-
 export default function ElderMeasure() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  // 화면 높이에 맞춰 측정 링·점수 글자를 줄여 작은 폰에서도 히어로가 화면을 덜 먹게 한다.
+  // (작은 폰 = 컴팩트. 숫자는 실기기에서 보고 미세조정)
+  const { height: winH } = useWindowDimensions();
+  const compact = winH < 760;
+  const RING = compact ? 168 : 204;      // 측정 링 지름 (기존 220)
+  const R = RING / 2 - 14;               // 반지름(획 두께 12 고려)
+  const CIRC = 2 * Math.PI * R;
+  const scoreFs = compact ? 52 : 64;     // 큰 점수 글자 (기존 68)
+  const heroPadB = compact ? 20 : 28;    // 히어로 하단 여백 (기존 30)
 
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
@@ -120,7 +116,11 @@ export default function ElderMeasure() {
         try { r = run(win); } catch { setStatus('분석 오류'); return; }
         if (!r) { setStatus('모델 준비 중...'); return; }
 
-        if (r.activityState === 'WALKING' && r.score != null) {
+        if (r.activityState === 'WALKING' && r.warmingUp) {
+          // 워밍업: 평활화가 안정되기 전이라 점수는 숨기고 안내만.
+          setResult({ activityState: 'WARMUP' });
+          setStatus('측정 준비 중...');
+        } else if (r.activityState === 'WALKING' && r.score != null) {
           setResult(r);
           setCount((c) => c + 1);
           setStatus('측정 중');
@@ -144,13 +144,10 @@ export default function ElderMeasure() {
               if (r.riskLevel === 'SUSPECTED') m.danger += 1;
             }
           }
-        } else if (r.activityState === 'STATIONARY') {
+        } else {
+          // 정지 — 보행 대기 (모델 추론 생략)
           setResult({ activityState: 'STATIONARY' });
           setStatus('정지 · 보행 대기');
-        } else {
-          // 걷기 아님(뛰기/계단 등) — 동작만 표시, 점수 집계 제외
-          setResult(r);
-          setStatus(`${ACTIVITY_LABELS[r.activityClass] ?? '동작'} 감지`);
         }
       }
     });
@@ -199,21 +196,20 @@ export default function ElderMeasure() {
   const pingOpacity = ping.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.32, 0] });
 
   const stationary = result?.activityState === 'STATIONARY';
-  const activity = result?.activityClass;
-  const nonWalkingLocomotion = ['downstairs', 'running', 'upstairs'].includes(activity);
-  const score = stationary ? null : result?.score;
-  const tone = (stationary || score == null) ? 'idle' : riskTone(score, result?.riskLevel);
+  const warmup = result?.activityState === 'WARMUP';
+  const score = (stationary || warmup) ? null : result?.score;
+  const tone = (stationary || warmup || score == null) ? 'idle' : riskTone(score, result?.riskLevel);
   const accent = TONE_DOT[tone];
   const offset = score != null ? CIRC * (1 - score / 100) : CIRC;
-  const measuring = !stationary && score != null;
+  const measuring = !stationary && !warmup && score != null;
 
   const centerText = stationary ? '걸으면 측정이 시작돼요'
-    : result?.score != null ? (nonWalkingLocomotion ? `${ACTIVITY_LABELS[activity]} 감지` : tone === 'danger' ? '위험 보행 의심' : tone === 'caution' ? '이상 보행 의심' : '정상 보행')
+    : warmup ? '안정적인 측정을 위해 잠시 걸어주세요'
+    : result?.score != null ? (tone === 'danger' ? '위험 보행 의심' : tone === 'caution' ? '이상 보행 의심' : '정상 보행')
     : '걸음 데이터 수집 중';
 
-  const activityLabel = activity ? (ACTIVITY_LABELS[activity] ?? activity) : '대기';
   const stats = [
-    ['지금 동작', activityLabel, ''],
+    ['지금 상태', stateLabel(result), ''],
     ['걸음 속도', (!stationary && result?.cadence != null) ? String(result.cadence) : '—', '걸음/분'],
     ['측정 횟수', String(count), '회'],
   ];
@@ -260,7 +256,7 @@ export default function ElderMeasure() {
       <LinearGradient
         colors={[T.blue, T.blueDark]}
         start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-        style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 30, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' }}>
+        style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: heroPadB, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' }}>
         <View style={{ position: 'absolute', right: -60, top: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.08)' }}/>
         <View style={{ position: 'absolute', left: -50, bottom: -90, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }}/>
 
@@ -282,10 +278,10 @@ export default function ElderMeasure() {
           <View style={{ width: 44 }}/>
         </View>
 
-        <View style={{ marginTop: 22, alignItems: 'center' }}>
+        <View style={{ marginTop: compact ? 12 : 20, alignItems: 'center' }}>
           <Text style={{ color: 'rgba(255,255,255,0.92)', fontFamily: T.fontSemiBold, fontSize: 16 }}>주머니에 넣고 평소처럼 걸어주세요</Text>
 
-          <View style={{ marginTop: 18, width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ marginTop: compact ? 10 : 16, width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
             <Animated.View pointerEvents="none" style={{ position: 'absolute', width: RING, height: RING, borderRadius: RING / 2, borderWidth: 6, borderColor: '#fff', transform: [{ scale: pingScale }], opacity: pingOpacity }}/>
             <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`} style={{ position: 'absolute' }}>
               <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.18)" strokeWidth="12" fill="none"/>
@@ -295,7 +291,7 @@ export default function ElderMeasure() {
             </Svg>
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', fontFamily: T.fontSemiBold, letterSpacing: 0.5 }}>보행 점수</Text>
-              <Text style={{ fontSize: 68, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -3, lineHeight: 74, marginTop: 2 }}>
+              <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -3, lineHeight: scoreFs + 6, marginTop: 2 }}>
                 {stationary ? '정지' : score != null ? Math.round(score) : '--'}
               </Text>
             </View>
@@ -347,7 +343,7 @@ export default function ElderMeasure() {
               )}
             </View>
             {scoreHist.length >= 2 ? (
-              <SparkLine data={scoreHist.slice(-60)} width={300} height={72} color={T.blue} min={0} max={100}/>
+              <SparkLine data={scoreHist.slice(-60)} height={72} color={T.blue} min={0} max={100}/>
             ) : (
               <View style={{ height: 72, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontMedium }}>걷기를 시작하면 점수 그래프가 그려져요</Text>
@@ -369,18 +365,18 @@ export default function ElderMeasure() {
             <Card pad={16} style={{ borderRadius: 18, marginTop: 2 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
                 <Text style={{ fontSize: 13, color: T.body, fontFamily: T.fontSemiBold }}>실시간 가속도 (x · y · z)</Text>
-                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>{formatActivity(result)}</Text>
+                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>{stateLabel(result)}</Text>
               </View>
-              <IMUTrace width={300} height={38} color={T.blue} data={trace.x}/>
-              <IMUTrace width={300} height={38} color="#7B5BD9" data={trace.y}/>
-              <IMUTrace width={300} height={38} color={T.ok} data={trace.z}/>
+              <IMUTrace height={38} color={T.blue} data={trace.x}/>
+              <IMUTrace height={38} color="#7B5BD9" data={trace.y}/>
+              <IMUTrace height={38} color={T.ok} data={trace.z}/>
             </Card>
           )}
         </View>
       </ScrollView>
 
       {/* 측정 완료 — 크고 명확한 버튼 */}
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 34, paddingTop: 10, backgroundColor: T.bg }}>
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 16), paddingTop: 10, backgroundColor: T.bg }}>
         <Pressable
           onPress={finish}
           style={({ pressed }) => ({

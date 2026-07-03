@@ -1,3 +1,18 @@
+# NEVO Frontend
+
+스마트폰 IMU(가속도·자이로) 센서로 보행을 분석해 퇴행성 뇌질환(파킨슨·뇌졸중)의 초기 보행 변화를 일상에서 조기 탐지하는 **Android 앱**. AI 추론은 기기에서(on-device 2단계 TFLite) 수행하고, Spring Boot 백엔드는 저장·리포트·알림을 담당한다. 노인(WARD)·보호자(GUARDIAN) 역할을 지원한다.
+
+- 기술: Expo SDK 54 (React Native 0.81.5 / JavaScript), Expo Router, react-native-fast-tflite
+- 기준 문서: 한이음 개발보고서 (목표) → 세부 구현 기준은 아래 문서 참고
+
+## 📚 문서 맵
+
+| 문서 | 내용 |
+|------|------|
+| [AGENTS.md](AGENTS.md) | **단일 기준 문서** — 아키텍처·디자인 시스템·on-device 파이프라인·백엔드 API·현재/목표 갭 |
+| [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md) | 로컬 백엔드 기동 + 실기기 테스트 절차 |
+| [docs/DEV_BUILD.md](docs/DEV_BUILD.md) | EAS dev build(on-device 측정용) 절차 |
+
 ## 🎯 Git Convention
 
 | 이모지 | 타입 | 설명 |
