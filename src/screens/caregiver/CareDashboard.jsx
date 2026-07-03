@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
@@ -40,6 +41,7 @@ function fmtAgo(iso) {
 
 export default function CareDashboard() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [wards, setWards] = useState([]);
   const [meName, setMeName] = useState('보호자');
@@ -65,7 +67,7 @@ export default function CareDashboard() {
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       {/* header */}
-      <View style={{ paddingTop: 54, paddingBottom: 14, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line }}>
+      <View style={{ paddingTop: insets.top + 12, paddingBottom: 14, paddingHorizontal: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <View>
             <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontSemiBold }}>안녕하세요</Text>
@@ -160,7 +162,7 @@ export default function CareDashboard() {
                         </View>
                         {spark.length >= 2 && (
                           <View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
-                            <SparkLine data={spark} width={344} height={42} color={toneScore[w.tone]}/>
+                            <SparkLine data={spark} height={42} color={toneScore[w.tone]}/>
                           </View>
                         )}
                       </Card>

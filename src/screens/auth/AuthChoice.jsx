@@ -1,22 +1,24 @@
 ﻿import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 
 export default function AuthChoice() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <Pressable
         onPress={() => router.push('/server-config')}
-        style={{ position: 'absolute', top: 54, right: 20, zIndex: 1, width: 38, height: 38, borderRadius: 19, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'absolute', top: insets.top + 10, right: 20, zIndex: 1, width: 38, height: 38, borderRadius: 19, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}
       >
         <Icon.settings width={18} height={18} color={T.muted}/>
       </Pressable>
       <View style={{
         flex: 1,
-        paddingTop: 100, paddingHorizontal: 32,
+        paddingTop: insets.top + 56, paddingHorizontal: 32,
         alignItems: 'center',
       }}>
         <View style={{
@@ -46,7 +48,7 @@ export default function AuthChoice() {
         </View>
       </View>
 
-      <View style={{ padding: 20, paddingBottom: 40 }}>
+      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24) }}>
         <Pressable onPress={() => router.push('/(auth)/role')} style={{
           height: 58, borderRadius: 14, backgroundColor: T.blue,
           alignItems: 'center', justifyContent: 'center', marginBottom: 10,

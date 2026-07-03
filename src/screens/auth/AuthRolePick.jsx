@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Pill from '../../components/Pill';
@@ -8,6 +9,7 @@ import { authStore } from '../../store/authStore';
 
 export default function AuthRolePick() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [role, setRole] = useState('elder');
 
   const handleNext = () => {
@@ -20,7 +22,7 @@ export default function AuthRolePick() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <View style={{ paddingTop: 54, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Pressable onPress={() => router.back()} style={{
           width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff',
           borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center',
@@ -127,7 +129,7 @@ export default function AuthRolePick() {
         </Pressable>
       </ScrollView>
 
-      <View style={{ padding: 20, paddingBottom: 36 }}>
+      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
         <Pressable onPress={handleNext} style={{
           height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center',
         }}>

@@ -1,13 +1,15 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../tokens';
 import Icon from '../icons';
 
 export default function AppHeader({ title, sub, right, onBack }) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   return (
-    <View style={{ paddingTop: 54, paddingBottom: 12, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+    <View style={{ paddingTop: insets.top + 12, paddingBottom: 12, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
       {onBack && (
         <Pressable onPress={() => router.back()} style={{
           width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff',

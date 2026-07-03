@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../tokens';
 import Icon from '../icons';
 import { serverConfig, DEFAULT_BACKEND_BASE } from '../store/serverConfig';
@@ -9,6 +10,7 @@ import { serverConfig, DEFAULT_BACKEND_BASE } from '../store/serverConfig';
 // APK 재빌드 없이 여기서 주소를 바꿔 저장한다.
 export default function ServerConfig() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [backend, setBackend] = useState(serverConfig.getBackendBase());
 
   const handleSave = async () => {
@@ -49,7 +51,7 @@ export default function ServerConfig() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={{ flex: 1, backgroundColor: '#fff' }}>
-        <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
             <Icon.arrowLeft width={18} height={18} color={T.ink}/>
           </Pressable>
@@ -74,7 +76,7 @@ export default function ServerConfig() {
           </Pressable>
         </ScrollView>
 
-        <View style={{ padding: 20, paddingBottom: 36 }}>
+        <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
           <Pressable onPress={handleSave} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>저장</Text>
           </Pressable>

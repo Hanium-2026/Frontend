@@ -3,6 +3,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { View, Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokenStore } from '../src/store/tokenStore';
 import { serverConfig } from '../src/store/serverConfig';
 
@@ -43,7 +44,7 @@ export default function RootLayout() {
     </Stack>
   );
 
-  if (!isWeb) return stack;
+  if (!isWeb) return <SafeAreaProvider>{stack}</SafeAreaProvider>;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#E8ECF0', alignItems: 'center', justifyContent: 'center' }}>

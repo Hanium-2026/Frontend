@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import { authStore } from '../../store/authStore';
@@ -28,6 +29,7 @@ const fmtPhone = (d) => {
 
 export default function AuthOTP() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [otp, setOtp] = useState('');
   const [secs, setSecs] = useState(180);
   const [busy, setBusy] = useState(false);
@@ -95,7 +97,7 @@ export default function AuthOTP() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={{ paddingTop: 54, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
           <Icon.arrowLeft width={18} height={18} color={T.ink}/>
         </Pressable>
@@ -156,7 +158,7 @@ export default function AuthOTP() {
         </View>
       </View>
 
-      <View style={{ padding: 20, paddingBottom: 36 }}>
+      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
         <Pressable onPress={() => verify(otp)} disabled={otp.length !== 6 || busy} style={{ height: 58, borderRadius: 14, backgroundColor: otp.length === 6 ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
           {busy
             ? <ActivityIndicator color="#fff"/>

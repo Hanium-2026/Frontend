@@ -2,11 +2,13 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 
 export default function ElderOnboarding() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const features = [
     { i: 'spark',  t: '자동 측정',  s: '평소처럼 걸으면 됩니다' },
     { i: 'brain',  t: 'AI 분석',    s: '보행 패턴을 정밀 분석해요' },
@@ -20,7 +22,7 @@ export default function ElderOnboarding() {
           colors={[T.blueSoft, '#ffffff']}
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 0.65 }}
-          style={{ paddingTop: 120, paddingHorizontal: 32, paddingBottom: 40, alignItems: 'center' }}
+          style={{ paddingTop: insets.top + 76, paddingHorizontal: 32, paddingBottom: 40, alignItems: 'center' }}
         >
           <View style={{
             width: 96, height: 96, borderRadius: 28, backgroundColor: T.blue,
@@ -57,7 +59,7 @@ export default function ElderOnboarding() {
           </View>
         </LinearGradient>
 
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40, backgroundColor: '#fff' }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 24), backgroundColor: '#fff' }}>
           <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, textAlign: 'center', marginBottom: 12 }}>어떻게 사용하시나요?</Text>
           <Pressable
             onPress={() => router.push('/(auth)/')}

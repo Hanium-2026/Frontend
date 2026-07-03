@@ -18,7 +18,7 @@ const TONE_FG = { ok: T.blue, caution: '#8B5A06', danger: '#9B1B1B' };
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
-  { icon: 'walk',    label: '걷기',  path: '/(elder)/measure' },
+  { icon: 'walk',    label: '걷기',  path: '/(elder)/measure-intro' },
   { icon: 'history', label: '기록',  path: '/(elder)/history' },
   { icon: 'family',  label: '보호자', path: '/(elder)/caregiver' },
   { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
@@ -110,7 +110,7 @@ export default function ElderHistory() {
                 </View>
                 {trend.length > 0 && (
                   <View style={{ marginTop: 10 }}>
-                    <BarChart data={trend} width={328} height={92} color={T.blue} max={100} labels={dayLabels}/>
+                    <BarChart data={trend} height={92} color={T.blue} max={100} labels={dayLabels}/>
                   </View>
                 )}
               </Card>

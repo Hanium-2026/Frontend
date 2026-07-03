@@ -2,6 +2,7 @@
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import Svg, { G, Polygon, Line, Text as SvgText } from 'react-native-svg';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
@@ -38,9 +39,10 @@ function gridPoints(r) {
 
 export default function CareAnalysis() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <View style={{ paddingTop: 54, paddingBottom: 14, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ paddingTop: insets.top + 12, paddingBottom: 14, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: T.line, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
           <Icon.arrowLeft width={18} height={18} color={T.body}/>
         </Pressable>

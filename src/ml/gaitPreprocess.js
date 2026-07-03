@@ -1,33 +1,25 @@
 // 보행 분석 전처리 (순수 함수 — 네이티브 의존성 없음, 단위 테스트 가능).
 // 입력 윈도우: [[ax,ay,az,gx,gy,gz], ...]  (expo-sensors 단위: acc=g, gyro=rad/s)
 //
-// 모델 입력 형태: (1, 100, 10), 피처 순서:
+// 정완이형 모델(normal/abnormal 보행 분류) 입력 형태: (1, 100, 10), 피처 순서:
 //   acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_x_dyn, acc_y_dyn, acc_z_dyn, acc_norm
 //   - acc_dyn = acc - mean(acc over window) (중력/오프셋 제거한 동적 성분)
 //   - acc_norm = ||acc|| (중력 포함 크기)
-//
-// 1차(HuGaDB 동작분류): HuGaDB는 int16 센서 카운트로 학습됨 → g/rad/s를 int16 스케일로 변환 후 정규화.
-// 2차(정상/이상 보행): g/rad/s 원단위로 학습됨(scaler acc_norm 평균≈1.0) → 변환 없이 그대로 정규화.
+// 학습 단위가 g·rad/s 원단위(scaler acc_norm 평균≈1.0)라 expo-sensors 값을 변환 없이 그대로 쓴다.
 
-import stage1Scaler from '../../assets/models/gait_stage1_scaler.json';
-import stage2Scaler from '../../assets/models/gait_stage2_scaler.json';
+import gaitScaler from '../../assets/models/gait_scaler.json';
 
-export const WINDOW_SIZE = 100; // 모델이 기대하는 타임스텝
-const FEATURES = 10;
-
-// HuGaDB int16 변환 상수 (nevo_score_server.py와 동일)
-const ACC_COUNTS_PER_G = 32768 / 2;                       // 16384
-const GYRO_COUNTS_PER_RAD = (32768 / 2000) * (180 / Math.PI); // 938.734...
-const INT16_MIN = -32768;
-const INT16_MAX = 32767;
+export const WINDOW_SIZE = gaitScaler.window_size;        // 100
+export const SAMPLE_RATE_HZ = gaitScaler.sample_rate_hz;  // 50
+export const CLASSES = gaitScaler.classes;                // ['normal','abnormal']
+const FEATURES = gaitScaler.feature_names.length;         // 10
+const MEAN = gaitScaler.mean;
+const SCALE = gaitScaler.scale;
 
 const clip = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-export const STAGE1_CLASSES = stage1Scaler.classes;
-export const STAGE2_CLASSES = stage2Scaler.classes;
-
-// 윈도우를 정확히 100샘플로 맞춘다. 더 길면 최근 100개, 짧으면 앞을 첫 샘플로 패딩.
-export function resampleTo100(window) {
+// 윈도우를 정확히 WINDOW_SIZE 샘플로 맞춘다. 더 길면 최근 N개, 짧으면 앞을 첫 샘플로 패딩.
+export function resampleWindow(window) {
   const n = window.length;
   if (n >= WINDOW_SIZE) return window.slice(n - WINDOW_SIZE);
   const pad = [];
@@ -36,8 +28,7 @@ export function resampleTo100(window) {
   return pad.concat(window);
 }
 
-// 정지 판정 휴리스틱 (raw g/rad/s 기준 — 서버와 동일 임계값).
-// 거의 안 움직이면 동작분류 모델을 돌릴 필요 없이 STATIONARY로 단축.
+// 정지 판정 휴리스틱 (raw g/rad/s 기준). 거의 안 움직이면 보행 모델을 돌리지 않고 STATIONARY로 단축.
 export function isStationary(samples) {
   const n = samples.length;
   if (!n) return true;
@@ -60,10 +51,9 @@ export function isStationary(samples) {
 }
 
 // 분당 걸음 수(cadence) 추정 — 동적 가속도 크기의 피크를 센다. (정확한 보행수가 아닌 추정치)
-export function estimateCadence(samples, sampleRateHz = stage2Scaler.sample_rate_hz || 50) {
+export function estimateCadence(samples, sampleRateHz = SAMPLE_RATE_HZ) {
   const n = samples.length;
   if (n < 4) return null;
-  // 동적 가속도 크기(중력 제거 근사: 평균을 뺀 각 축) → 크기
   let mx = 0, my = 0, mz = 0;
   for (const s of samples) { mx += s[0]; my += s[1]; mz += s[2]; }
   mx /= n; my /= n; mz /= n;
@@ -72,7 +62,6 @@ export function estimateCadence(samples, sampleRateHz = stage2Scaler.sample_rate
     const dx = samples[i][0] - mx, dy = samples[i][1] - my, dz = samples[i][2] - mz;
     mag[i] = Math.sqrt(dx * dx + dy * dy + dz * dz);
   }
-  // 임계값 = 평균 + 0.5*표준편차 위로 올라가는 상승 교차를 피크로 카운트
   let mean = 0; for (const v of mag) mean += v; mean /= n;
   let varSum = 0; for (const v of mag) varSum += (v - mean) ** 2;
   const std = Math.sqrt(varSum / n);
@@ -87,68 +76,29 @@ export function estimateCadence(samples, sampleRateHz = stage2Scaler.sample_rate
   return clip(cadence, 0, 220);
 }
 
-// 피처 빌드 + 표준화. opts로 단위 변환 여부를 결정한다.
-function buildInput(samples, { accScale, gyroScale, clipInt16, mean, scale }) {
+// 모델 입력 빌드: 피처 10개 계산 후 scaler(mean/scale)로 표준화 → Float32Array (WINDOW_SIZE*FEATURES).
+export function buildInput(samples) {
   const n = samples.length;
-  const accs = new Array(n);
-  const gyros = new Array(n);
   let mx = 0, my = 0, mz = 0;
-  for (let i = 0; i < n; i++) {
-    let ax = samples[i][0] * accScale;
-    let ay = samples[i][1] * accScale;
-    let az = samples[i][2] * accScale;
-    let gx = samples[i][3] * gyroScale;
-    let gy = samples[i][4] * gyroScale;
-    let gz = samples[i][5] * gyroScale;
-    if (clipInt16) {
-      ax = clip(ax, INT16_MIN, INT16_MAX); ay = clip(ay, INT16_MIN, INT16_MAX); az = clip(az, INT16_MIN, INT16_MAX);
-      gx = clip(gx, INT16_MIN, INT16_MAX); gy = clip(gy, INT16_MIN, INT16_MAX); gz = clip(gz, INT16_MIN, INT16_MAX);
-    }
-    accs[i] = [ax, ay, az];
-    gyros[i] = [gx, gy, gz];
-    mx += ax; my += ay; mz += az;
-  }
+  for (let i = 0; i < n; i++) { mx += samples[i][0]; my += samples[i][1]; mz += samples[i][2]; }
   mx /= n; my /= n; mz /= n;
 
   const out = new Float32Array(n * FEATURES);
   for (let i = 0; i < n; i++) {
-    const [ax, ay, az] = accs[i];
-    const [gx, gy, gz] = gyros[i];
+    const [ax, ay, az, gx, gy, gz] = samples[i];
     const dx = ax - mx, dy = ay - my, dz = az - mz;
     const norm = Math.sqrt(ax * ax + ay * ay + az * az);
     const f = [ax, ay, az, gx, gy, gz, dx, dy, dz, norm];
     const base = i * FEATURES;
-    for (let k = 0; k < FEATURES; k++) out[base + k] = (f[k] - mean[k]) / scale[k];
+    for (let k = 0; k < FEATURES; k++) out[base + k] = (f[k] - MEAN[k]) / SCALE[k];
   }
   return out;
-}
-
-// 1차(동작분류): int16 단위로 변환 후 stage1 scaler 정규화.
-export function buildStage1Input(samples100) {
-  return buildInput(samples100, {
-    accScale: ACC_COUNTS_PER_G,
-    gyroScale: GYRO_COUNTS_PER_RAD,
-    clipInt16: true,
-    mean: stage1Scaler.mean,
-    scale: stage1Scaler.scale,
-  });
-}
-
-// 2차(정상/이상): g·rad/s 원단위 그대로, stage2 scaler 정규화.
-export function buildStage2Input(samples100) {
-  return buildInput(samples100, {
-    accScale: 1,
-    gyroScale: 1,
-    clipInt16: false,
-    mean: stage2Scaler.mean,
-    scale: stage2Scaler.scale,
-  });
 }
 
 // 모델 출력(logits 또는 확률)을 확률로 정규화 + argmax.
 export function softmaxArgmax(raw) {
   const arr = Array.from(raw, Number);
-  let sum = arr.reduce((a, b) => a + b, 0);
+  const sum = arr.reduce((a, b) => a + b, 0);
   const looksLikeProb = arr.every((v) => v >= 0) && Math.abs(sum - 1) < 0.02;
   let probs;
   if (looksLikeProb) {
