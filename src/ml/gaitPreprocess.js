@@ -1,20 +1,21 @@
 // 보행 분석 전처리 (순수 함수 — 네이티브 의존성 없음, 단위 테스트 가능).
 // 입력 윈도우: [[ax,ay,az,gx,gy,gz], ...]  (expo-sensors 단위: acc=g, gyro=rad/s)
 //
-// 정완이형 모델(normal/abnormal 보행 분류) 입력 형태: (1, 100, 10), 피처 순서:
-//   acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_x_dyn, acc_y_dyn, acc_z_dyn, acc_norm
-//   - acc_dyn = acc - mean(acc over window) (중력/오프셋 제거한 동적 성분)
-//   - acc_norm = ||acc|| (중력 포함 크기)
-// 학습 단위가 g·rad/s 원단위(scaler acc_norm 평균≈1.0)라 expo-sensors 값을 변환 없이 그대로 쓴다.
+// 2단계 on-device 파이프라인 (두 모델 모두 입력 (1,100,10), g·rad/s 원단위):
+//   피처 순서: acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_x_dyn, acc_y_dyn, acc_z_dyn, acc_norm
+//     - acc_dyn = acc - mean(acc over window) (중력/오프셋 제거한 동적 성분)
+//     - acc_norm = ||acc|| (중력 포함 크기)
+//   1차(동작분류, 정완 huga+93 재학습본)·2차(정상/이상) 모두 g·rad/s 원단위(scaler acc_norm 평균≈1.0~1.2)
+//   → 변환 없이 스케일러(mean/scale)만 다르게 정규화한다.
 
-import gaitScaler from '../../assets/models/gait_scaler.json';
+import stage1Scaler from '../../assets/models/gait_stage1_scaler.json';
+import stage2Scaler from '../../assets/models/gait_scaler.json';
 
-export const WINDOW_SIZE = gaitScaler.window_size;        // 100
-export const SAMPLE_RATE_HZ = gaitScaler.sample_rate_hz;  // 50
-export const CLASSES = gaitScaler.classes;                // ['normal','abnormal']
-const FEATURES = gaitScaler.feature_names.length;         // 10
-const MEAN = gaitScaler.mean;
-const SCALE = gaitScaler.scale;
+export const WINDOW_SIZE = stage2Scaler.window_size;        // 100
+export const SAMPLE_RATE_HZ = stage2Scaler.sample_rate_hz;  // 50
+export const STAGE1_CLASSES = stage1Scaler.classes;         // ['downstairs','running','sitting','standing','upstairs','walking']
+export const STAGE2_CLASSES = stage2Scaler.classes;         // ['normal','abnormal']
+const FEATURES = stage2Scaler.feature_names.length;         // 10
 
 const clip = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -28,7 +29,8 @@ export function resampleWindow(window) {
   return pad.concat(window);
 }
 
-// 정지 판정 휴리스틱 (raw g/rad/s 기준). 거의 안 움직이면 보행 모델을 돌리지 않고 STATIONARY로 단축.
+// 정지 판정 휴리스틱 (raw g/rad/s 기준, 방향 무관). 거의 안 움직이면 모델 추론 없이 STATIONARY로 단축.
+// 1차 모델이 정지 자세를 잘 못 거르므로(주머니 도메인), 이 게이트가 sitting/standing 필터를 담당한다.
 export function isStationary(samples) {
   const n = samples.length;
   if (!n) return true;
@@ -76,8 +78,9 @@ export function estimateCadence(samples, sampleRateHz = SAMPLE_RATE_HZ) {
   return clip(cadence, 0, 220);
 }
 
-// 모델 입력 빌드: 피처 10개 계산 후 scaler(mean/scale)로 표준화 → Float32Array (WINDOW_SIZE*FEATURES).
-export function buildInput(samples) {
+// 피처 10개 계산 후 scaler(mean/scale)로 표준화 → Float32Array (WINDOW_SIZE*FEATURES).
+// 1차·2차 모두 g·rad/s 원단위 입력, 스케일러(mean/scale)만 다르다.
+function buildInput(samples, mean, scale) {
   const n = samples.length;
   let mx = 0, my = 0, mz = 0;
   for (let i = 0; i < n; i++) { mx += samples[i][0]; my += samples[i][1]; mz += samples[i][2]; }
@@ -90,9 +93,19 @@ export function buildInput(samples) {
     const norm = Math.sqrt(ax * ax + ay * ay + az * az);
     const f = [ax, ay, az, gx, gy, gz, dx, dy, dz, norm];
     const base = i * FEATURES;
-    for (let k = 0; k < FEATURES; k++) out[base + k] = (f[k] - MEAN[k]) / SCALE[k];
+    for (let k = 0; k < FEATURES; k++) out[base + k] = (f[k] - mean[k]) / scale[k];
   }
   return out;
+}
+
+// 1차(동작분류) — 정완 huga+93 재학습본(g단위). stage1 scaler로 정규화.
+export function buildStage1Input(samples) {
+  return buildInput(samples, stage1Scaler.mean, stage1Scaler.scale);
+}
+
+// 2차(정상/이상) — g·rad/s 원단위. stage2 scaler로 정규화.
+export function buildStage2Input(samples) {
+  return buildInput(samples, stage2Scaler.mean, stage2Scaler.scale);
 }
 
 // 모델 출력(logits 또는 확률)을 확률로 정규화 + argmax.
