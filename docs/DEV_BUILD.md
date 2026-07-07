@@ -22,4 +22,4 @@ npx eas-cli build --profile development --platform android
 ## 참고
 - 로컬 HTTP 백엔드 접속을 위해 `app.json`의 `expo-build-properties`에 `android.usesCleartextTraffic: true` 설정됨.
 - 모델 갱신: `assets/models/`의 `.tflite`/scaler를 교체하면 다음 빌드에 반영. (전처리는 `src/ml/gaitPreprocess.js`)
-- FCM 푸시도 dev build + `google-services.json`이 있어야 동작 (현재 미적용).
+- FCM 푸시: 프론트 연동 완료(`expo-notifications` + `google-services.json` 커밋됨, `com.nevo.app`/`nevo-a5a79`). 이 dev build부터 로그인 시 FCM 토큰 등록됨. ⚠️ 실발송은 백엔드가 같은 프로젝트 service account 키를 넣어야 동작.
