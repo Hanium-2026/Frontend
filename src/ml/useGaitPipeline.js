@@ -2,7 +2,8 @@
 //  1차: 동작분류(정완 huga+93, g단위) → "걷는 중"인지 게이트. 비보행(뛰기·계단 등)은 2차 생략.
 //  2차: 걷는 중일 때만 정상/이상 보행 판정 → 점수/위험도 산출.
 // 정지(sitting/standing)는 방향 무관 휴리스틱 isStationary가 앞단에서 차단(1차 모델은 정지 필터가 약함).
-// 단일 윈도우(83.9% 이진분류)는 노이즈가 커서 P(이상)을 EWMA로 평활화 + 워밍업 + 히스테리시스로 안정화.
+// 단일 윈도우(83.9% 이진분류)는 노이즈가 커서 P(이상)을 EWMA로 평활 + 히스테리시스로 라벨 안정화.
+//  워밍업 숨김은 두지 않는다 — 걷는 즉시 평활 점수를 표시/기록하고, EWMA가 초반부터 부드럽게 수렴한다.
 // react-native-fast-tflite 필요(네이티브) → dev build에서만 동작. Expo Go에서는 모델 로드 실패.
 import { useEffect, useRef, useState } from 'react';
 import { Asset } from 'expo-asset';
@@ -21,7 +22,6 @@ import {
 const ABNORMAL_IDX = STAGE2_CLASSES.indexOf('abnormal');
 const STATIONARY_CLASSES = new Set(['sitting', 'standing']); // 1차가 이 동작을 확신하면 정지 처리
 const EWMA_ALPHA = 0.2;        // 평활화 강도(작을수록 안정·느림). 시정수 ~5윈도우(~6초)
-const WARMUP_WINDOWS = 6;      // 이만큼 걷기 윈도우가 쌓이기 전엔 점수 숨김(~8초)
 const SUSPECT_ON = 0.55;       // 라벨 히스테리시스: 이상으로 전환
 const SUSPECT_OFF = 0.45;      // 정상으로 전환 (사이 구간은 직전 라벨 유지)
 
@@ -29,7 +29,6 @@ export function useGaitPipeline() {
   const stage1Ref = useRef(null);
   const stage2Ref = useRef(null);
   const emaRef = useRef(null);      // P(이상) EWMA
-  const walkCountRef = useRef(0);   // 걷기 윈도우 누적 수
   const riskRef = useRef('NORMAL'); // 히스테리시스 적용된 라벨
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
@@ -60,7 +59,7 @@ export function useGaitPipeline() {
   }, []);
 
   // 동기 추론. 반환 형태는 기존 세션 업로드 계약과 동일.
-  // {activityState, activityClass, activityConfidence, score, riskLevel, cadence, pAbnormal, warmingUp}
+  // {activityState, activityClass, activityConfidence, score, riskLevel, cadence, pAbnormal}
   function analyze(window) {
     const m1 = stage1Ref.current;
     const m2 = stage2Ref.current;
@@ -70,7 +69,7 @@ export function useGaitPipeline() {
 
     // 빠른 정지 판정 (모델 호출 생략) — sitting/standing은 여기서 차단.
     if (isStationary(samples)) {
-      return { activityState: 'STATIONARY', activityClass: 'stationary', score: null, riskLevel: 'NORMAL', cadence: null, warmingUp: false };
+      return { activityState: 'STATIONARY', activityClass: 'stationary', score: null, riskLevel: 'NORMAL', cadence: null };
     }
 
     // 1차: 동작 분류 게이트 (출력 ArrayBuffer → Float32Array 래핑)
@@ -79,11 +78,11 @@ export function useGaitPipeline() {
     const activityClass = STAGE1_CLASSES[i1];
 
     if (STATIONARY_CLASSES.has(activityClass) && conf1 >= 0.8) {
-      return { activityState: 'STATIONARY', activityClass, activityConfidence: conf1, score: null, riskLevel: 'NORMAL', cadence: null, warmingUp: false };
+      return { activityState: 'STATIONARY', activityClass, activityConfidence: conf1, score: null, riskLevel: 'NORMAL', cadence: null };
     }
     if (activityClass !== 'walking') {
       // 뛰기/계단 등 — 보행 모델 적용 대상 아님. 동작만 표시, 점수 없음.
-      return { activityState: 'OTHER', activityClass, activityConfidence: conf1, score: null, riskLevel: 'NORMAL', cadence: null, warmingUp: false };
+      return { activityState: 'OTHER', activityClass, activityConfidence: conf1, score: null, riskLevel: 'NORMAL', cadence: null };
     }
 
     // 2차: 정상/이상 보행 (원단위 입력)
@@ -91,12 +90,10 @@ export function useGaitPipeline() {
     const { probs } = softmaxArgmax(out2);
     const pRaw = ABNORMAL_IDX >= 0 ? (probs[ABNORMAL_IDX] ?? 0) : 0;
 
-    // P(이상) 지수이동평균 — 순간값 대신 매끄러운 추세를 점수로 쓴다.
+    // P(이상) 지수이동평균 — 첫 윈도우부터 점수를 내되(seed=첫 raw값) EWMA로 부드럽게 수렴.
     const prev = emaRef.current;
     const ema = prev == null ? pRaw : EWMA_ALPHA * pRaw + (1 - EWMA_ALPHA) * prev;
     emaRef.current = ema;
-    walkCountRef.current += 1;
-    const warmingUp = walkCountRef.current < WARMUP_WINDOWS;
 
     // 라벨 히스테리시스 — 0.5 경계에서 깜빡이지 않도록 평활화 확률 기준으로만 갱신.
     let risk = riskRef.current;
@@ -112,7 +109,6 @@ export function useGaitPipeline() {
       riskLevel: risk,
       cadence: estimateCadence(samples),
       pAbnormal: ema,
-      warmingUp,
     };
   }
 

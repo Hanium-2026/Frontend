@@ -29,10 +29,9 @@ const aggregateMinute = (m) => ({
   dangerCount: m.danger,
 });
 
-// 단일 보행 모델: 동작분류 없이 정지/측정준비/걷기/대기만 구분.
+// 상태 라벨: 정지 / 걷기 / 대기.
 const stateLabel = (result) => {
   if (result?.activityState === 'STATIONARY') return '정지';
-  if (result?.activityState === 'WARMUP') return '측정 준비';
   if (result?.score != null) return '걷기';
   return '대기';
 };
@@ -116,11 +115,7 @@ export default function ElderMeasure() {
         try { r = run(win); } catch { setStatus('분석 오류'); return; }
         if (!r) { setStatus('모델 준비 중...'); return; }
 
-        if (r.activityState === 'WALKING' && r.warmingUp) {
-          // 워밍업: 평활화가 안정되기 전이라 점수는 숨기고 안내만.
-          setResult({ activityState: 'WARMUP' });
-          setStatus('측정 준비 중...');
-        } else if (r.activityState === 'WALKING' && r.score != null) {
+        if (r.activityState === 'WALKING' && r.score != null) {
           setResult(r);
           setCount((c) => c + 1);
           setStatus('측정 중');
@@ -196,15 +191,13 @@ export default function ElderMeasure() {
   const pingOpacity = ping.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.32, 0] });
 
   const stationary = result?.activityState === 'STATIONARY';
-  const warmup = result?.activityState === 'WARMUP';
-  const score = (stationary || warmup) ? null : result?.score;
-  const tone = (stationary || warmup || score == null) ? 'idle' : riskTone(score, result?.riskLevel);
+  const score = stationary ? null : result?.score;
+  const tone = (stationary || score == null) ? 'idle' : riskTone(score, result?.riskLevel);
   const accent = TONE_DOT[tone];
   const offset = score != null ? CIRC * (1 - score / 100) : CIRC;
-  const measuring = !stationary && !warmup && score != null;
+  const measuring = !stationary && score != null;
 
   const centerText = stationary ? '걸으면 측정이 시작돼요'
-    : warmup ? '안정적인 측정을 위해 잠시 걸어주세요'
     : result?.score != null ? (tone === 'danger' ? '위험 보행 의심' : tone === 'caution' ? '이상 보행 의심' : '정상 보행')
     : '걸음 데이터 수집 중';
 
