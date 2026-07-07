@@ -2,6 +2,7 @@
 import { api } from './client';
 import { tokenStore } from '../store/tokenStore';
 import { getItem, setItem } from '../store/storage';
+import { registerPushToken, unregisterPushToken } from '../notifications/push';
 
 // 디바이스 식별자: 로그인/회원가입에 필수. 최초 1회 생성 후 영속.
 const DEVICE_KEY = 'nevo.deviceId';
@@ -31,6 +32,7 @@ export async function signUp(payload) {
   const deviceId = await getDeviceId();
   const data = await api.post('/api/auth/sign-up', { ...payload, deviceId });
   await tokenStore.save({ accessToken: data.accessToken, refreshToken: data.refreshToken, role: data.role });
+  registerPushToken(); // FCM 토큰 등록(비동기, 실패해도 흐름 유지)
   return data; // { accessToken, refreshToken, role }
 }
 
@@ -39,6 +41,7 @@ export async function login(phone, password) {
   const deviceId = await getDeviceId();
   const data = await api.post('/api/auth/login', { phone, password, deviceId });
   await tokenStore.save({ accessToken: data.accessToken, refreshToken: data.refreshToken, role: data.role });
+  registerPushToken(); // FCM 토큰 등록(비동기, 실패해도 흐름 유지)
   return data; // { accessToken, refreshToken, role }
 }
 
@@ -46,6 +49,7 @@ export async function login(phone, password) {
 export async function logout() {
   const refreshToken = tokenStore.getRefresh();
   try {
+    await unregisterPushToken(); // 토큰이 아직 유효할 때 서버에서 FCM 토큰 제거
     if (refreshToken) await api.post('/api/auth/logout', { refreshToken });
   } finally {
     await tokenStore.clear();
