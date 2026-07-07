@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "70786818549",
+    "project_id": "nevo-a5a79",
+    "storage_bucket": "nevo-a5a79.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:70786818549:android:d420c0e1ae184796dcc0bc",
+        "android_client_info": {
+          "package_name": "com.nevo.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjMEXBkX8vGM2Q5T93zUSTI56C3gOvslg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
