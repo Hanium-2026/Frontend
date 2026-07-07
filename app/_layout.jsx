@@ -1,11 +1,13 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
 import { View, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokenStore } from '../src/store/tokenStore';
 import { serverConfig } from '../src/store/serverConfig';
+import { registerPushToken } from '../src/notifications/push';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,6 +33,22 @@ export default function RootLayout() {
   useEffect(() => {
     if (ready) SplashScreen.hideAsync();
   }, [ready]);
+
+  // 이미 로그인 상태면 앱 시작 시 FCM 토큰 등록/갱신.
+  const router = useRouter();
+  useEffect(() => {
+    if (ready && tokenStore.isLoggedIn()) registerPushToken();
+  }, [ready]);
+
+  // 알림 탭 → 보호자 알림 화면으로 이동. (백엔드 data.type: STROKE_DANGER)
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
+      const data = res?.notification?.request?.content?.data || {};
+      if (data.type === 'STROKE_DANGER') router.push('/(caregiver)/alerts');
+    });
+    return () => sub.remove();
+  }, []);
 
   if (!ready) return <View style={{ flex: 1, backgroundColor: '#fff' }}/>;
 
