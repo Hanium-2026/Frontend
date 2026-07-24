@@ -7,6 +7,7 @@ import { View, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokenStore } from '../src/store/tokenStore';
 import { serverConfig } from '../src/store/serverConfig';
+import { fontScale } from '../src/store/fontScale';
 import { registerPushToken } from '../src/notifications/push';
 
 SplashScreen.preventAutoHideAsync();
@@ -25,7 +26,7 @@ export default function RootLayout() {
   // 저장된 토큰·서버 주소를 메모리로 로드 — 라우팅/요청 전에 완료돼야 함.
   const [sessionLoaded, setSessionLoaded] = useState(false);
   useEffect(() => {
-    Promise.all([tokenStore.load(), serverConfig.load()]).finally(() => setSessionLoaded(true));
+    Promise.all([tokenStore.load(), serverConfig.load(), fontScale.load()]).finally(() => setSessionLoaded(true));
   }, []);
 
   const ready = loaded && sessionLoaded;

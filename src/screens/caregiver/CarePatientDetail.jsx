@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import Text from '../../components/Text';
 import Svg, { G, Line, Path, Circle, Text as SvgText } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

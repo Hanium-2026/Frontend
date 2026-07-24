@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useRef, useEffect } from 'react';
-import { View, Text, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
+import Text from '../../components/Text';
 import Svg, { Circle } from 'react-native-svg';
 import { useFocusEffect, useRouter } from 'expo-router';
 import T from '../../tokens';

@@ -1,5 +1,6 @@
 ﻿import React from 'react';
-import { View, Text, Pressable, ScrollView, Share } from 'react-native';
+import { View, Pressable, ScrollView, Share } from 'react-native';
+import Text from '../../components/Text';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';

@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
