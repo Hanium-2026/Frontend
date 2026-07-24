@@ -1,5 +1,6 @@
 ﻿import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
+import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';

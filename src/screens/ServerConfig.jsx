@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Pressable, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import TextInput from '../components/TextInput';
+import Text from '../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../tokens';

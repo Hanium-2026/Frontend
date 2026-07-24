@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Alert, ActivityIndicator } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import Text from '../../components/Text';
+import { useFocusEffect, useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
@@ -7,8 +9,7 @@ import SectionLabel from '../../components/SectionLabel';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
-import { generateLinkCode, getMyGuardians } from '../../api/links';
-import { ApiError } from '../../api/client';
+import { getMyGuardians } from '../../api/links';
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
@@ -18,94 +19,51 @@ const ELDER_TABS = [
   { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
 ];
 
-const PHONE_RE = /^01[016789]\d{7,8}$/;
-
-const sharing = [
-  ['일일 걸음 점수', true],
-  ['상세 보행 지표', true],
-  ['위치 정보',      false],
-  ['낙상 / 비상 알림', true],
-];
-
 function fmtDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()} 연결됨`;
 }
 
+function MenuRow({ icon, title, sub, onPress, divider }) {
+  const IconCmp = Icon[icon];
+  return (
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderBottomWidth: divider ? 1 : 0, borderBottomColor: T.line }}>
+      <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
+        <IconCmp width={24} height={24} color={T.blue}/>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>{title}</Text>
+        <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: 3, lineHeight: 19 }}>{sub}</Text>
+      </View>
+      <Icon.chevron width={20} height={20} color={T.muted}/>
+    </Pressable>
+  );
+}
+
 export default function ElderCaregiver() {
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState(null);     // { code, expiresAt }
-  const [busy, setBusy] = useState(false);
+  const router = useRouter();
   const [guardians, setGuardians] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadGuardians = () => getMyGuardians().then(setGuardians).catch(() => setGuardians([]));
-
-  useEffect(() => {
-    loadGuardians().finally(() => setLoading(false));
-  }, []);
-
-  const handleGenerate = async () => {
-    if (busy) return;
-    if (!PHONE_RE.test(phone)) {
-      Alert.alert('전화번호 확인', '보호자 전화번호를 정확히 입력해주세요.');
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await generateLinkCode(phone);
-      setCode(res);
-      loadGuardians();
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : '코드 생성에 실패했어요.';
-      Alert.alert('실패', msg);
-    } finally {
-      setBusy(false);
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      getMyGuardians()
+        .then((list) => { if (alive) setGuardians(list ?? []); })
+        .catch(() => { if (alive) setGuardians([]); })
+        .finally(() => { if (alive) setLoading(false); });
+      return () => { alive = false; };
+    }, [])
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <AppHeader title="보호자" sub="가족과 결과를 함께 보세요"/>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        {/* invite code — 보호자 전화번호로 연동 코드 생성 */}
+        {/* 연결된 가족 — 상단 */}
         <View style={{ paddingHorizontal: 16, marginTop: 4 }}>
-          <Card pad={18} style={{ borderRadius: 20, backgroundColor: T.blue, borderWidth: 0 }}>
-            {code ? (
-              <>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: T.fs.caption, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold, letterSpacing: 0.4 }}>연동 코드</Text>
-                  <Text style={{ fontSize: T.fs.caption, color: 'rgba(255,255,255,0.9)' }}>보호자에게 알려주세요</Text>
-                </View>
-                <Text style={{ fontSize: 42, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: 6, marginTop: 8 }}>{code.code}</Text>
-                <Pressable onPress={() => setCode(null)} style={{ marginTop: 14, paddingVertical: 15, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center' }}>
-                  <Text style={{ fontSize: T.fs.sub, fontFamily: T.fontBold, color: '#fff' }}>다른 보호자 코드 만들기</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={{ fontSize: T.fs.body, color: '#fff', fontFamily: T.fontBold }}>보호자 연동 코드 만들기</Text>
-                <Text style={{ fontSize: T.fs.label, color: 'rgba(255,255,255,0.9)', marginTop: 5, lineHeight: 21 }}>보호자 전화번호를 입력하면 연동 코드를 만들어드려요.</Text>
-                <TextInput
-                  style={{ marginTop: 14, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 15, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}
-                  value={phone}
-                  onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))}
-                  placeholder="보호자 전화번호 (01012345678)"
-                  placeholderTextColor={T.muted}
-                  keyboardType="number-pad"
-                  maxLength={11}
-                />
-                <Pressable onPress={handleGenerate} disabled={busy} style={{ marginTop: 12, height: T.tap, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.95)', alignItems: 'center', justifyContent: 'center' }}>
-                  {busy ? <ActivityIndicator color={T.blue}/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.blue }}>코드 생성</Text>}
-                </Pressable>
-              </>
-            )}
-          </Card>
-        </View>
-
-        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
           <SectionLabel>연결된 가족 ({guardians.length}명)</SectionLabel>
           <Card pad={0} style={{ borderRadius: 18 }}>
             {loading ? (
@@ -124,17 +82,24 @@ export default function ElderCaregiver() {
               </View>
             ))}
           </Card>
+        </View>
 
-          <SectionLabel>공유하는 정보</SectionLabel>
+        {/* 관리 메뉴 */}
+        <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
           <Card pad={0} style={{ borderRadius: 18 }}>
-            {sharing.map(([l, on], i) => (
-              <View key={i} style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: i < sharing.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
-                <Text style={{ flex: 1, fontSize: T.fs.sub, color: T.ink, fontFamily: T.fontMedium }}>{l}</Text>
-                <View style={{ width: 40, height: 24, borderRadius: 12, backgroundColor: on ? T.blue : T.line }}>
-                  <View style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}/>
-                </View>
-              </View>
-            ))}
+            <MenuRow
+              icon="plus"
+              title="보호자와 연결하기"
+              sub="연동 코드로 가족을 연결해요"
+              onPress={() => router.push('/(elder)/caregiver-link')}
+              divider
+            />
+            <MenuRow
+              icon="share"
+              title="공유하는 정보"
+              sub="보호자에게 공유할 정보를 선택해요"
+              onPress={() => router.push('/(elder)/caregiver-sharing')}
+            />
           </Card>
         </View>
       </ScrollView>

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Pressable, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import TextInput from '../../components/TextInput';
+import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import AppHeader from '../../components/AppHeader';

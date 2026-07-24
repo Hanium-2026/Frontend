@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Pressable, ScrollView, Alert } from 'react-native';
+import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Card from '../../components/Card';
