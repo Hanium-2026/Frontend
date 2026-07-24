@@ -1,5 +1,6 @@
 ﻿import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Pressable, ScrollView } from 'react-native';
+import Text from '../../components/Text';
 import Svg, { G, Polygon, Line, Text as SvgText } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { View, ScrollView, ActivityIndicator } from 'react-native';
+import Text from '../../components/Text';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
