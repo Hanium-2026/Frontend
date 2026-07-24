@@ -51,6 +51,8 @@ export default function ElderResult() {
     { label: '평균 점수',     v: `${s.avgScore} / 100`,        bar: s.avgScore,                    tone: TONE_COLOR[tone], note: tone === 'danger' ? '위험' : tone === 'caution' ? '관찰 권장' : '정상 범위' },
     { label: '점수 범위',     v: `${s.minScore}~${s.maxScore}`, bar: s.maxScore,                    tone: T.blue,    note: '최저~최고' },
     { label: '케이던스',      v: `${s.avgCadence} /분`,         bar: Math.min(100, Math.round(s.avgCadence / 1.3)), tone: T.blue, note: '평균 분당 걸음' },
+    ...(s.symmetry != null ? [{ label: '좌우 균형 (추정)', v: `${s.symmetry}점`, bar: s.symmetry, tone: s.symmetry >= 90 ? T.ok : s.symmetry >= 80 ? T.caution : T.danger, note: s.symmetry >= 90 ? '균형 좋음' : s.symmetry >= 80 ? '약간 불균형' : '불균형' }] : []),
+    ...(s.variability != null ? [{ label: '걸음 리듬 (추정)', v: `${s.variability}%`, bar: Math.max(0, 100 - s.variability * 3), tone: s.variability <= 10 ? T.ok : s.variability <= 20 ? T.caution : T.danger, note: s.variability <= 10 ? '규칙적' : s.variability <= 20 ? '보통' : '불규칙' }] : []),
     { label: '이상 의심 비율', v: `${s.suspectedRatio}%`,        bar: 100 - s.suspectedRatio,        tone: s.suspectedRatio > 30 ? T.caution : T.ok, note: s.suspectedRatio > 30 ? '주의' : '낮음' },
     { label: '분석 구간',     v: `${s.windows} 회`,             bar: Math.min(100, s.windows * 5),  tone: T.blue,    note: '걷기 구간 수' },
   ] : [];
@@ -149,6 +151,11 @@ export default function ElderResult() {
               </View>
             ))}
           </Card>
+          {s && (s.symmetry != null || s.variability != null) && (
+            <Text style={{ fontSize: T.fs.caption, color: T.muted, fontFamily: T.fontMedium, marginTop: 8, lineHeight: 19 }}>
+              좌우 균형과 걸음 리듬은 걸음 신호로 추정한 값이에요. 좌우 균형은 100에 가까울수록, 걸음 리듬은 낮을수록 안정적이에요.
+            </Text>
+          )}
         </View>
       </ScrollView>
 
