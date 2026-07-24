@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
+import Text from '../../components/Text';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -43,15 +44,17 @@ export default function ElderMeasure() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // 화면 높이에 맞춰 측정 링·점수 글자를 줄여 작은 폰에서도 히어로가 화면을 덜 먹게 한다.
-  // (작은 폰 = 컴팩트. 숫자는 실기기에서 보고 미세조정)
+  // 파랑 히어로를 홈 화면과 동일한 비율·사이징 패턴으로 맞춘다.
+  // 링을 작게 + 가로 배치(링 왼쪽 / 결과 오른쪽)해 파랑이 화면을 덜 먹게 하고,
+  // 홈과 같은 compact 기준을 써서 모든 폰에서 비율이 일정하도록 한다.
   const { height: winH } = useWindowDimensions();
   const compact = winH < 760;
-  const RING = compact ? 168 : 204;      // 측정 링 지름 (기존 220)
-  const R = RING / 2 - 14;               // 반지름(획 두께 12 고려)
+  const RING = compact ? 108 : 128;      // 측정 링 지름 (홈 96/116보다 살짝 크게 = 측정의 초점)
+  const R = RING / 2 - 10;               // 반지름(획 두께 10 고려, 홈과 동일)
   const CIRC = 2 * Math.PI * R;
-  const scoreFs = compact ? 52 : 64;     // 큰 점수 글자 (기존 68)
-  const heroPadB = compact ? 20 : 28;    // 히어로 하단 여백 (기존 30)
+  const scoreFs = compact ? 40 : 48;     // 큰 점수 글자
+  const heroGap = compact ? 14 : 18;     // 상단 행 ↔ 메인 행 간격 (홈과 동일)
+  const heroPadB = compact ? 18 : 26;    // 히어로 하단 여백 (홈 18/28)
 
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
@@ -178,18 +181,6 @@ export default function ElderMeasure() {
   const dotScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] });
   const dotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
 
-  // 측정 링에서 밖으로 퍼지는 펄스(레이더 핑) — 살아있는 느낌
-  const ping = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(ping, { toValue: 1, duration: 2000, easing: Easing.out(Easing.ease), useNativeDriver: true })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
-  const pingScale = ping.interpolate({ inputRange: [0, 1], outputRange: [1, 1.32] });
-  const pingOpacity = ping.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.32, 0] });
-
   const stationary = result?.activityState === 'STATIONARY';
   const score = stationary ? null : result?.score;
   const tone = (stationary || score == null) ? 'idle' : riskTone(score, result?.riskLevel);
@@ -271,32 +262,42 @@ export default function ElderMeasure() {
           <View style={{ width: 44 }}/>
         </View>
 
-        <View style={{ marginTop: compact ? 12 : 20, alignItems: 'center' }}>
-          <Text style={{ color: 'rgba(255,255,255,0.92)', fontFamily: T.fontSemiBold, fontSize: 16 }}>주머니에 넣고 평소처럼 걸어주세요</Text>
-
-          <View style={{ marginTop: compact ? 10 : 16, width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
-            <Animated.View pointerEvents="none" style={{ position: 'absolute', width: RING, height: RING, borderRadius: RING / 2, borderWidth: 6, borderColor: '#fff', transform: [{ scale: pingScale }], opacity: pingOpacity }}/>
-            <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`} style={{ position: 'absolute' }}>
-              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.18)" strokeWidth="12" fill="none"/>
-              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="#fff" strokeWidth="12" fill="none"
+        <View style={{ marginTop: heroGap, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          {/* 점수 링 — 홈과 동일한 사이징(작게 + 가로 배치) */}
+          <View style={{ width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
+            <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`}>
+              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.22)" strokeWidth="10" fill="none"/>
+              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="#fff" strokeWidth="10" fill="none"
                 strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={offset}
                 transform={`rotate(-90 ${RING / 2} ${RING / 2})`}/>
             </Svg>
-            <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', fontFamily: T.fontSemiBold, letterSpacing: 0.5 }}>보행 점수</Text>
-              <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -3, lineHeight: scoreFs + 6, marginTop: 2 }}>
-                {stationary ? '정지' : score != null ? Math.round(score) : '--'}
-              </Text>
+            <View style={{ position: 'absolute', alignItems: 'center' }}>
+              {stationary ? (
+                <Text style={{ fontSize: scoreFs - 6, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1 }}>정지</Text>
+              ) : (
+                <>
+                  <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1, lineHeight: scoreFs + 2 }}>
+                    {score != null ? Math.round(score) : '--'}
+                  </Text>
+                  <Text style={{ fontSize: 14, fontFamily: T.font, color: 'rgba(255,255,255,0.75)', marginTop: -2 }}>/ 100점</Text>
+                </>
+              )}
             </View>
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 100, marginTop: 14 }}>
-            <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: accent }}/>
-            <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: '#fff', letterSpacing: -0.2 }}>{centerText}</Text>
+          {/* 결과 · 타이머 · 안내 (오른쪽 세로) */}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 100 }}>
+              <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: accent }}/>
+              <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: '#fff', letterSpacing: -0.2 }}>{centerText}</Text>
+            </View>
+            <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold, marginTop: 10 }}>
+              측정 시간 <Text style={{ fontFamily: T.fontExtraBold, color: '#fff' }}>{mmss}</Text>
+            </Text>
+            <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', fontFamily: T.font, marginTop: 8, lineHeight: 19 }}>
+              주머니에 넣고 평소처럼 걸어주세요
+            </Text>
           </View>
-          <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold, marginTop: 12 }}>
-            측정 시간 <Text style={{ fontFamily: T.fontExtraBold, color: '#fff' }}>{mmss}</Text>
-          </Text>
         </View>
       </LinearGradient>
 

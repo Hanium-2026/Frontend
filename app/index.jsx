@@ -1,5 +1,6 @@
 import { Redirect } from 'expo-router';
-import { Platform, View, Text, Pressable } from 'react-native';
+import { Platform, View, Pressable } from 'react-native';
+import Text from '../src/components/Text';
 import { useRouter } from 'expo-router';
 import T from '../src/tokens';
 import { tokenStore } from '../src/store/tokenStore';

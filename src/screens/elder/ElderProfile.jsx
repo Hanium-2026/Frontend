@@ -1,5 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Pressable, ScrollView, Alert } from 'react-native';
+import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
@@ -35,9 +36,9 @@ const healthItems = [
 ];
 
 const etcItems = [
-  ['settings', '앱 설정'],
-  ['shield',   '개인정보 보호'],
-  ['doc',      '이용 가이드'],
+  ['settings', '앱 설정',       '/(elder)/app-settings'],
+  ['shield',   '개인정보 보호',  '/(elder)/privacy'],
+  ['doc',      '이용 가이드',    '/(elder)/guide'],
 ];
 
 const CURRENT_YEAR = 2026;
@@ -150,16 +151,16 @@ export default function ElderProfile() {
 
           <SectionLabel>기타</SectionLabel>
           <Card pad={0} style={{ borderRadius: 18 }}>
-            {etcItems.map(([i, t], k) => {
+            {etcItems.map(([i, t, path], k) => {
               const I = Icon[i];
               return (
-                <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: k < etcItems.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
+                <Pressable key={k} onPress={() => router.push(path)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: k < etcItems.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
                   <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#EEF0F4', alignItems: 'center', justifyContent: 'center' }}>
                     <I width={18} height={18} color={T.muted}/>
                   </View>
                   <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
                   <Icon.chevron width={14} height={14} color={T.muted}/>
-                </View>
+                </Pressable>
               );
             })}
           </Card>
