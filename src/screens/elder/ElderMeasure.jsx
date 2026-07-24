@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions, Alert, Modal } from 'react-native';
 import Text from '../../components/Text';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,10 +11,13 @@ import Icon from '../../icons';
 import Card from '../../components/Card';
 import IMUTrace from '../../components/IMUTrace';
 import SparkLine from '../../components/SparkLine';
+import TrustChart from '../../components/TrustChart';
 import { useGaitPipeline } from '../../ml/useGaitPipeline';
+import { createStepCounter, createTurnDetector, computeGaitMetrics } from '../../ml/gaitPreprocess';
 import { sessionStore } from '../../store/sessionStore';
 import { tokenStore } from '../../store/tokenStore';
 import { ensureSession, uploadData, stopSession, uploadAnalysis, toMinuteAt } from '../../api/session';
+import { getPhysicalInfo } from '../../api/ward';
 import { riskTone } from '../../risk';
 
 const WINDOW = 128;   // 2.56초 @ 50Hz
@@ -59,7 +62,14 @@ export default function ElderMeasure() {
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
   const sinceRef = useRef(0);         // 마지막 전송 이후 쌓인 샘플 수
-  const accRef = useRef({ scores: [], cadences: [], suspected: 0 });  // 세션 누적(걷기만)
+  const accRef = useRef({ rawP: [], cadences: [] });  // 세션 누적(걷기만): 원시 P(이상)·케이던스
+
+  // 연속 걸음 검출기(윈도우와 분리) + 회전 검출기 + 키 기반 보폭(m). 보폭 = 0.43 × 키, 없으면 0.70m.
+  const stepperRef = useRef(null);
+  if (!stepperRef.current) stepperRef.current = createStepCounter();
+  const turnRef = useRef(null);
+  if (!turnRef.current) turnRef.current = createTurnDetector();
+  const stepLenRef = useRef(0.70);
 
   // on-device 추론 파이프라인(1차 동작분류 → 2차 정상/이상). dev build에서만 모델 로드됨.
   const { ready: modelReady, error: modelError, analyze } = useGaitPipeline();
@@ -76,11 +86,15 @@ export default function ElderMeasure() {
   const minuteRef = useRef({ key: null, scores: [], danger: 0 });  // 현재 분 버킷
 
   const [result, setResult] = useState(null);   // {score, riskLevel, error, ratio}
-  const [count, setCount] = useState(0);         // 분석한 윈도우 수
+  const [steps, setSteps] = useState(0);         // 연속 검출기 누적 걸음 수
+  const [shownScore, setShownScore] = useState(null);   // 화면에 유지되는 마지막 점수(정지 중에도 표시)
+  const [shownRisk, setShownRisk] = useState('NORMAL');
   const [status, setStatus] = useState('센서 준비 중...');
   const [trace, setTrace] = useState({ x: null, y: null, z: null });  // 실시간 3축 파형
   const [showSignal, setShowSignal] = useState(false);  // 측정 신호(파형) 펼침 — 기본 숨김
-  const [scoreHist, setScoreHist] = useState([]);  // 걷기 점수 이력(라이브 그래프)
+  const [scoreHist, setScoreHist] = useState([]);  // 걷기 평활 점수 이력(라이브 그래프)
+  const [rawHist, setRawHist] = useState([]);      // 걷기 원(raw) 점수 이력 — 모니터링 차트의 '흔들린 순간'용
+  const [showMonitor, setShowMonitor] = useState(false);  // 시연용 모니터링 오버레이
   const [elapsed, setElapsed] = useState(0);       // 측정 경과 시간(초)
 
   // 측정 화면 진입 시 세션 확보(진행 중이면 복원, 없으면 시작). 실패해도 측정은 계속.
@@ -89,6 +103,10 @@ export default function ElderMeasure() {
     let alive = true;
     ensureSession()
       .then((s) => { if (alive) sessionIdRef.current = s?.sessionId ?? null; })
+      .catch(() => {});
+    // 키 → 보폭(m). 이동 거리 = 걸음 수 × 보폭. 실패/미등록이면 기본 0.70m 유지.
+    getPhysicalInfo()
+      .then((info) => { const h = Number(info?.height); if (h > 0) stepLenRef.current = 0.43 * (h / 100); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -103,6 +121,11 @@ export default function ElderMeasure() {
 
     const aSub = Accelerometer.addListener(({ x, y, z }) => {
       const [gx, gy, gz] = gyroRef.current;
+      // 회전(방향 전환) 감지 → 걸음에 태깅(회전 걸음은 변동성·대칭성에서 제외)
+      const turning = turnRef.current.push(x, y, z, gx, gy, gz);
+      // 연속 걸음 검출(윈도우 분석과 무관하게 원시 스트림에서 카운트)
+      if (stepperRef.current.push(x, y, z, Date.now(), turning)) setSteps(stepperRef.current.count);
+
       const buf = bufRef.current;
       buf.push([x, y, z, gx, gy, gz]);
       if (buf.length > 256) buf.splice(0, buf.length - 256);  // 메모리 캡 (슬라이딩)
@@ -120,13 +143,14 @@ export default function ElderMeasure() {
 
         if (r.activityState === 'WALKING' && r.score != null) {
           setResult(r);
-          setCount((c) => c + 1);
+          setShownScore(r.score);         // 마지막 점수 갱신(정지 전환돼도 이 값이 계속 보임)
+          setShownRisk(r.riskLevel);
           setStatus('측정 중');
           const a = accRef.current;
-          a.scores.push(r.score);
+          a.rawP.push(r.pRaw);              // 판정용 원시 P(이상)
           a.cadences.push(r.cadence ?? 0);
-          if (r.riskLevel === 'SUSPECTED') a.suspected += 1;
           setScoreHist((h) => [...h, Math.round(r.score)]);
+          setRawHist((h) => [...h, Math.round((1 - r.pRaw) * 100)]);  // 평활 전 원점수(흔들린 순간)
 
           // 분당 집계: 분이 바뀌면 직전 분을 백엔드로 업로드(중복 전송은 서버가 무시)
           if (useBackend) {
@@ -182,39 +206,67 @@ export default function ElderMeasure() {
   const dotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
 
   const stationary = result?.activityState === 'STATIONARY';
-  const score = stationary ? null : result?.score;
-  const tone = (stationary || score == null) ? 'idle' : riskTone(score, result?.riskLevel);
+  const score = shownScore;   // 마지막 점수 유지 — 정지 중에도 점수는 계속 표시(지금 상태 타일만 정지)
+  const tone = score == null ? 'idle' : riskTone(score, shownRisk);
   const accent = TONE_DOT[tone];
   const offset = score != null ? CIRC * (1 - score / 100) : CIRC;
-  const measuring = !stationary && score != null;
+  const measuring = !stationary && result?.score != null;  // 펄스는 실제 걷는 중에만
+  const distanceM = Math.round(steps * stepLenRef.current);  // 이동 거리(m, 추정): 걸음 수 × 보폭
 
-  const centerText = stationary ? '걸으면 측정이 시작돼요'
-    : result?.score != null ? (tone === 'danger' ? '위험 보행 의심' : tone === 'caution' ? '이상 보행 의심' : '정상 보행')
-    : '걸음 데이터 수집 중';
+  // 모니터링 차트 데이터(평활+원점수 겹쳐 그림) + 라이브 요약
+  const chartData = scoreHist.map((sc, i) => ({ smooth: sc, raw: rawHist[i] ?? sc }));
+  const avgScoreLive = scoreHist.length ? Math.round(scoreHist.reduce((x, y) => x + y, 0) / scoreHist.length) : null;
+  const minScoreLive = scoreHist.length ? Math.min(...scoreHist) : null;
+
+  const centerText = score == null ? '걸으면 측정이 시작돼요'
+    : tone === 'danger' ? '위험 보행 의심'
+    : tone === 'caution' ? '이상 보행 의심'
+    : '정상 보행';
 
   const stats = [
     ['지금 상태', stateLabel(result), ''],
-    ['걸음 속도', (!stationary && result?.cadence != null) ? String(result.cadence) : '—', '걸음/분'],
-    ['측정 횟수', String(count), '회'],
+    ['걸음 수', String(steps), '걸음'],
+    ['이동 거리', `약 ${distanceM}`, 'm'],
   ];
 
-  const finish = () => {
+  // 세션 판정은 실시간 EWMA 수렴값이 아니라 raw P(이상) '분포'로 낸다(짧게 재도 판단 가능).
+  // 보행 개시 전환기(맨 앞 ONSET_DROP 윈도우)는 비정상 스텝이라 제외. median = 노이즈 견고.
+  const ONSET_DROP = 2;         // ~2.5초 제외
+  const MIN_WALK_WINDOWS = 12;  // 이 미만이면 저신뢰(개시 제외 후 ~10윈도우·~15초)
+
+  const buildSummary = (lowConfidence) => {
     const a = accRef.current;
-    const n = a.scores.length;
+    const pts = a.rawP.slice(ONSET_DROP);
+    if (pts.length === 0) return null;
+    const median = (arr) => { const s = [...arr].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     const avg = (arr) => Math.round(arr.reduce((x, y) => x + y, 0) / arr.length);
-    const summary = n > 0 ? {
-      windows: n,
-      avgScore: avg(a.scores),
-      minScore: Math.round(Math.min(...a.scores)),
-      maxScore: Math.round(Math.max(...a.scores)),
-      avgCadence: avg(a.cadences),
-      suspectedRatio: Math.round((a.suspected / n) * 100),
-      riskLevel: (a.suspected / n) > 0.3 ? 'SUSPECTED' : 'NORMAL',
+    const scores = pts.map((p) => (1 - p) * 100);
+    const dangerCount = pts.filter((p) => p >= 0.5).length;
+    const gm = computeGaitMetrics(stepperRef.current.steps);  // 회전 제외 직진 걸음으로 산출(부족하면 null)
+    return {
+      windows: a.rawP.length,
+      avgScore: Math.round((1 - median(pts)) * 100),
+      minScore: Math.round(Math.min(...scores)),
+      maxScore: Math.round(Math.max(...scores)),
+      avgCadence: a.cadences.length ? avg(a.cadences) : 0,
+      suspectedRatio: Math.round((dangerCount / pts.length) * 100),
+      riskLevel: (dangerCount / pts.length) > 0.3 ? 'SUSPECTED' : 'NORMAL',
+      dangerCount,
+      steps,
+      distanceM,
+      symmetry: gm ? gm.symmetry : null,       // 좌우대칭성(추정, 100=대칭)
+      variability: gm ? gm.variability : null,  // 걸음 간격 변동계수 CV(%)
+      lowConfidence,
       at: Date.now(),
-    } : null;
+    };
+  };
+
+  const doFinish = (lowConfidence) => {
+    const summary = buildSummary(lowConfidence);
     sessionStore.set(summary);
 
     // 백엔드 마무리: 잔여 분 데이터 → 종료 → 분석 결과. 실패해도 결과 화면은 이동.
+    // 저신뢰(짧은 측정)면 dangerCount 0으로 전송 → 보호자 오알림(FCM) 억제.
     const sid = sessionIdRef.current;
     if (useBackend && sid && summary) {
       (async () => {
@@ -226,13 +278,30 @@ export default function ElderMeasure() {
           avgScore: summary.avgScore,
           minScore: summary.minScore,
           maxScore: summary.maxScore,
-          dangerCount: a.suspected,
+          dangerCount: lowConfidence ? 0 : summary.dangerCount,
           reportSummary: null,
         });
       })().catch(() => {});
     }
 
     router.push('/(elder)/result');
+  };
+
+  // 걷기 윈도우가 너무 적으면(짧은 측정) 저장 전에 확인.
+  const finish = () => {
+    const walkWindows = accRef.current.rawP.length;
+    if (walkWindows > 0 && walkWindows < MIN_WALK_WINDOWS) {
+      Alert.alert(
+        '측정 시간이 짧아요',
+        '걸음이 충분히 측정되지 않아 결과가 정확하지 않을 수 있어요.\n그래도 저장할까요?',
+        [
+          { text: '더 걸을게요', style: 'cancel' },
+          { text: '그냥 저장', onPress: () => doFinish(true) },
+        ],
+      );
+      return;
+    }
+    doFinish(false);
   };
 
   return (
@@ -259,7 +328,11 @@ export default function ElderMeasure() {
             </View>
             <Text style={{ fontSize: 14, color: '#fff', fontFamily: T.fontSemiBold }}>{status}</Text>
           </View>
-          <View style={{ width: 44 }}/>
+          <Pressable
+            onPress={() => setShowMonitor(true)}
+            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon.chart width={20} height={20} color="#fff"/>
+          </Pressable>
         </View>
 
         <View style={{ marginTop: heroGap, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
@@ -272,16 +345,10 @@ export default function ElderMeasure() {
                 transform={`rotate(-90 ${RING / 2} ${RING / 2})`}/>
             </Svg>
             <View style={{ position: 'absolute', alignItems: 'center' }}>
-              {stationary ? (
-                <Text style={{ fontSize: scoreFs - 6, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1 }}>정지</Text>
-              ) : (
-                <>
-                  <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1, lineHeight: scoreFs + 2 }}>
-                    {score != null ? Math.round(score) : '--'}
-                  </Text>
-                  <Text style={{ fontSize: 14, fontFamily: T.font, color: 'rgba(255,255,255,0.75)', marginTop: -2 }}>/ 100점</Text>
-                </>
-              )}
+              <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1, lineHeight: scoreFs + 2 }}>
+                {score != null ? score : '--'}
+              </Text>
+              <Text style={{ fontSize: 14, fontFamily: T.font, color: 'rgba(255,255,255,0.75)', marginTop: -2 }}>/ 100점</Text>
             </View>
           </View>
 
@@ -382,6 +449,58 @@ export default function ElderMeasure() {
           <Text style={{ fontSize: 19, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -0.3 }}>측정 완료</Text>
         </Pressable>
       </View>
+
+      {/* 시연용 모니터링 오버레이 — 화면 공유로 "평균이 얼마고 언제 흔들렸나"를 보여줌 */}
+      <Modal visible={showMonitor} animationType="slide" onRequestClose={() => setShowMonitor(false)}>
+        <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top + 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
+            <Text style={{ fontSize: 20, fontFamily: T.fontExtraBold, color: T.ink }}>실시간 모니터링</Text>
+            <Pressable onPress={() => setShowMonitor(false)} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 12, backgroundColor: T.blueWash }}>
+              <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.blue }}>닫기</Text>
+            </Pressable>
+          </View>
+
+          {/* 요약: 평균 · 최저 · 현재 */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginTop: 4 }}>
+            {[['평균', avgScoreLive], ['최저', minScoreLive], ['현재', shownScore]].map(([l, v], k) => (
+              <Card key={k} pad={12} style={{ flex: 1, borderRadius: 14 }}>
+                <Text style={{ fontSize: 13, color: T.body, fontFamily: T.fontSemiBold }}>{l}</Text>
+                <Text style={{ fontSize: 28, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.5 }}>{v != null ? v : '--'}</Text>
+              </Card>
+            ))}
+          </View>
+
+          {/* 신뢰 차트 */}
+          <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+            <Card pad={14} style={{ borderRadius: 18 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontSize: 16, color: T.ink, fontFamily: T.fontBold }}>점수 변화</Text>
+                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>측정 {mmss}</Text>
+              </View>
+              {chartData.length >= 2 ? (
+                <TrustChart data={chartData} avg={avgScoreLive} height={220}/>
+              ) : (
+                <View style={{ height: 220, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 15, color: T.muted, fontFamily: T.fontMedium }}>걷기를 시작하면 그래프가 그려져요</Text>
+                </View>
+              )}
+              <Text style={{ fontSize: 12.5, color: T.muted, fontFamily: T.fontMedium, marginTop: 10, lineHeight: 19 }}>
+                파란 선 = 평활 추세 · 점 = 매 순간 원점수(흔들린 순간이 튐) · 파란 점선 = 평균 · 초록 점선 = 70 기준
+              </Text>
+            </Card>
+          </View>
+
+          {/* 라이브 지표 */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginTop: 12 }}>
+            {[['상태', stateLabel(result)], ['걸음', `${steps}`], ['거리', `약 ${distanceM}m`], ['케이던스', result?.cadence != null ? `${result.cadence}` : '—']].map(([l, v], k) => (
+              <Card key={k} pad={12} style={{ flex: 1, borderRadius: 14 }}>
+                <Text style={{ fontSize: 12.5, color: T.body, fontFamily: T.fontSemiBold }}>{l}</Text>
+                <Text style={{ fontSize: String(v).length > 5 ? 15 : 19, fontFamily: T.fontExtraBold, color: T.ink, marginTop: 2 }}>{v}</Text>
+              </Card>
+            ))}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

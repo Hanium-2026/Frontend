@@ -59,7 +59,7 @@ export function useGaitPipeline() {
   }, []);
 
   // 동기 추론. 반환 형태는 기존 세션 업로드 계약과 동일.
-  // {activityState, activityClass, activityConfidence, score, riskLevel, cadence, pAbnormal}
+  // {activityState, activityClass, activityConfidence, score, riskLevel, cadence, pAbnormal, pRaw}
   function analyze(window) {
     const m1 = stage1Ref.current;
     const m2 = stage2Ref.current;
@@ -90,9 +90,11 @@ export function useGaitPipeline() {
     const { probs } = softmaxArgmax(out2);
     const pRaw = ABNORMAL_IDX >= 0 ? (probs[ABNORMAL_IDX] ?? 0) : 0;
 
-    // P(이상) 지수이동평균 — 첫 윈도우부터 점수를 내되(seed=첫 raw값) EWMA로 부드럽게 수렴.
+    // P(이상) 지수이동평균 — 시드=0(=100점)에서 시작해 실제값으로 수렴(초반부터 낮게 시작하지 않게).
+    // 세션 판정은 이 수렴값이 아니라 raw 분포로 내므로(pRaw 반환), 시드값은 실시간 표시에만 영향.
     const prev = emaRef.current;
-    const ema = prev == null ? pRaw : EWMA_ALPHA * pRaw + (1 - EWMA_ALPHA) * prev;
+    const seed = prev == null ? 0 : prev;
+    const ema = EWMA_ALPHA * pRaw + (1 - EWMA_ALPHA) * seed;
     emaRef.current = ema;
 
     // 라벨 히스테리시스 — 0.5 경계에서 깜빡이지 않도록 평활화 확률 기준으로만 갱신.
@@ -109,6 +111,7 @@ export function useGaitPipeline() {
       riskLevel: risk,
       cadence: estimateCadence(samples),
       pAbnormal: ema,
+      pRaw,                 // 평활 전 원시 P(이상) — 세션 판정(raw 분포)용
     };
   }
 
