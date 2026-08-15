@@ -1,7 +1,7 @@
 # NEVO Frontend — AGENTS.md
 
 > 에이전트(Claude/Codex)가 읽고 작업하는 단일 기준 문서. 작업하며 계속 갱신할 것.
-> 최종 업데이트: 2026-07-07
+> 최종 업데이트: 2026-08-13
 >
 > 📌 **기준 = 개발보고서**: 이 문서의 "목표" 항목은 한이음 개발보고서를 따른다. "현재 구현"과 갭이 있으면
 >    보고서 쪽이 목표이고 코드를 거기에 맞춰 간다(문서를 코드 현실로 후퇴시키지 말 것).
@@ -23,7 +23,7 @@
 | 라우팅 | Expo Router (파일 기반) |
 | 센서/추론 | expo-sensors, react-native-fast-tflite (dev build 필요) |
 | 차트·그라디언트·폰트 | react-native-svg, expo-linear-gradient, Pretendard(expo-font) |
-| 위치/실시간 | expo-location, react-native-sse |
+| 위치/실시간 | expo-location, react-native-sse, @mj-studio/react-native-naver-map |
 
 ## 프로젝트 구조
 ```
@@ -73,10 +73,19 @@ scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 - **출력**: 정상/이상, score, riskLevel(NORMAL/SUSPECTED), 좌우 비대칭→`symmetryScore` 변환, cadence/변동성. `dangerCount>0` → 보호자 FCM.
 
 ### 현재 구현 (코드 현실 — 위 목표와의 갭, 코드 작업 시 우선 확인)
-- **1차**: `isStationary`(acc std<0.025g, gyro avg<0.04rad/s) 휴리스틱 게이트 → 움직이면 **huga+93 활동분류**(`gait_stage1_activity.tflite`, 6-class, g단위)로 walking 판정. `useGaitPipeline`: 정지→STATIONARY, 1차가 walking→2차 실행, sitting/standing(conf≥0.8)→STATIONARY, 그 외(running·계단)→OTHER(점수 없음). ⚠️ 화면(`ElderMeasure`)은 `activityClass`를 안 써서 running·계단은 "대기"로 뭉개짐(표시 UI 미구현).
+- **1차**: `motionLevel`(acc std<0.025g, gyro avg<0.04rad/s → `{stationary, accStd, gyroAvg}`) 휴리스틱 게이트 → 움직이면 **huga+93 활동분류**(`gait_stage1_activity.tflite`, 6-class, g단위)로 walking 판정. `useGaitPipeline`: 정지→STATIONARY, 1차가 walking→2차 실행, sitting/standing(conf≥0.8)→STATIONARY, 그 외(running·계단)→OTHER(점수 없음). `analyze`는 시연 표시용으로 `{accStd, gyroAvg, ms1, ms2}`(게이트 실측치·단계별 추론 지연)도 함께 반환한다.
 - **2차**: `gait_model.tflite` = **`best_model_quantized-4`(양자화 normal/abnormal, LOSO 84.31%)**. 단일 윈도우 신뢰 말고 세션 단위 집계 + P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정.
 - **전처리**: 피처 `acc_x,y,z, gyro_x,y,z, acc_x_dyn,y_dyn,z_dyn, acc_norm` (`acc_dyn`=윈도우 평균 제거, `acc_norm`=중력 포함 크기 ≈ ASVM 부분 충족). ⚠️ **GSVM·Butterworth 필터 없음**(v1은 모델과 일치하므로 의도된 상태). 단위 g·rad/s 원단위 그대로. scaler는 `gait_scaler.json`. v2에서 위 '재학습 계약'대로 GSVM·필터 추가.
-- **특징**: cadence만 가속도 피크로 추정. ⚠️ **이동거리·step interval·변동성·좌우 대칭성 산출 없음** (`CarePatientDetail`의 symmetry/variability는 백엔드 todayMetrics 값, `CareAnalysis` 레이더/히트맵은 **더미 데이터**).
+- **특징**: 윈도우 cadence(`estimateCadence`, 세션 평균용) + 스트리밍 걸음 기반 `recentCadence`(최근 10초 간격 → 화면 표시용, 안 튐) + `computeGaitMetrics`(회전 제외 직진 걸음의 변동성 CV·좌우대칭성) + 이동거리(걸음×보폭). ⚠️ `CarePatientDetail`의 symmetry/variability는 여전히 백엔드 todayMetrics 값, `CareAnalysis` 레이더/히트맵은 **더미 데이터**.
+
+### 시연 모드 (`src/components/DemoMonitor.jsx`)
+측정 화면 우상단 차트 버튼 → 화면 녹화 전용 고밀도 진단 패널. **어르신 화면이 아니므로 의도적으로 T.fs 타입스케일과 전역 글씨 배율을 따르지 않는다**(react-native `Text` 직접 사용). 스크롤 없이 한 화면 고정 — 점수 추이 카드가 `flex:1`로 남는 높이를 흡수한다.
+- ⚠️ **`Modal` 쓰지 말 것 — 절대배치 오버레이다.** 안드로이드에서 `Modal`은 별도 윈도우라 `useSafeAreaInsets()`가 `bottom: 0`을 반환해 하단 내비게이션 바가 버튼을 덮는다(실기기 확인).
+- 표시 원칙: **큰 숫자 하나 + 짧은 라벨.** 읽어도 이해 안 되는 설명 문구(예: "100샘플 × 10특징")는 말로 설명할 내용이지 화면에 넣지 않는다. 회색 마이크로 텍스트 금지 — 잘리거나 안 읽힌다.
+- 구성: ①센서 ②1차 게이트 ③2차 판정 파이프라인 스트립(비활성 단계는 회색) · 점수+산출식 `(1−P)×100` · **P(이상) 막대(원값 ● / 평활 ▮ / 히스테리시스 전환대)** · 점수 추이(TrustChart) · IMU 3축 + 정지 게이트 실측치 · 보조 지표 5종 · 측정 완료
+- 표시 상수는 `gaitPreprocess`(`STATIONARY_ACC_STD/GYRO_AVG`)·`useGaitPipeline`(`EWMA_ALPHA`, `SUSPECT_ON/OFF`)에서 import — 화면 하드코딩 금지
+- ⚠️ **보조 지표(리듬·CV·대칭)는 점수의 입력이 아니다.** 점수는 2차 모델이 파형에서 직접 판정한 P(이상)에서 나온다. 화면 문구도 "함께 관찰된 보행 특성"으로 고정 — 근거처럼 표현하지 말 것.
+- 시연 타이밍 제약: EWMA 시드가 0(=100점)이라 **걷기 시작 직후는 항상 80점대**, SUSPECTED 전환에 이상 보행 **6~7초(5윈도우) 이상** 필요. 저신뢰 경고를 피하려면 걷기 **20초 이상**(`MIN_WALK_WINDOWS`=12).
 - **모델 입력**: `(1,100,10)`. **fast-tflite v3**: `loadTensorflowModel(src, [])` — delegates(빈 배열=CPU) **필수 인자**. `runSync` 입출력은 ArrayBuffer → 입력 `.buffer`, 출력 `new Float32Array(out[0])`.
 - **출력 매핑**: `score=(1-P이상)×100`, `riskLevel=P이상≥0.5?SUSPECTED:NORMAL`. 반환 형태는 세션 업로드 계약과 동일.
 - **파일**: 1차 `gait_stage1_activity.tflite`+`gait_stage1_scaler.json`, 2차 `gait_model.tflite`+`gait_scaler.json` (`.tflite`는 `metro.config.js`에서 assetExts 등록). 모델 교체 시 `assets/models/` 파일만 교체, 전처리/단위가 바뀌면 `gaitPreprocess.js`(`buildStage1Input`/`buildStage2Input`) 수정.
@@ -114,10 +123,15 @@ scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 - [x] 1차 = **isStationary 휴리스틱 + huga+93 활동분류 게이트**(2026-07-07, 실측 게이팅 14/14, running·계단 미검증)
 - [x] 2차 = **best_model_quantized-4(양자화 84.31%)로 교체**
 - [ ] ★ **(정완) 2차 ASVM/GSVM+Butterworth 재학습** → 도착 시 프론트 전처리 미러링+스왑(v2). 재학습 계약은 on-device 섹션 참고
-- [ ] ★ **Peak Detection 보행 지표 산출**(이동거리·step interval·변동성·좌우 대칭성) — 더미/백엔드 의존 화면 실데이터화 (프론트 단독 진행 가능, 모델과 무관)
-- [ ] **EAS dev build → 실기기 on-device 측정 검증**
+- [x] **Peak Detection 보행 지표 산출**(이동거리·변동성·좌우 대칭성) — 측정 화면은 실데이터. 남은 건 `CareAnalysis` 더미 화면 연결
+- [x] **시연 모드 패널**(`DemoMonitor`) — 파이프라인 스트립·점수 산출식·P(이상) 히스테리시스·게이트 실측치·추론 지연(ms)
+- [x] EAS dev build 성공 → 실기기 구동 확인
+- [ ] ★ **`CareLocation` 실제 지도 연동**(2026-08-13) — 기존 SVG 목업 지도를 `@mj-studio/react-native-naver-map`(NaverMapView+Marker)로 교체, SSE 수신 좌표로 카메라 애니메이션. `app.json`의 `client_id` 발급·반영 완료(NCP Application "NEVO", Dynamic Map 월 600만 건 무료). 남은 건 새 EAS dev build(네이티브 모듈 추가라 기존 빌드로는 동작 안 함)
+- [x] **WARD 자동 위치 전송**(2026-08-13, `src/location/track.js`) — 기존엔 `ElderSOS` SOS 버튼 길게 누를 때만 위치 전송돼서 평소엔 보호자 위치 화면이 "위치 대기"만 뜸. 앱 포그라운드 동안 30초 간격 자동 업로드로 확장(백그라운드 전환 시 정지, 복귀 시 재개 — `AppState` 기반). 로그인/앱 시작 시 WARD 역할이면 자동 시작, 로그아웃 시 정지. SOS 버튼 즉시 전송은 그대로 유지
+- [ ] ★ **`CareLocation` 오늘 동선(연두색 폴리라인) — 프론트 준비 완료, 백엔드 대기**(2026-08-13) — `NaverMapPathOverlay`로 렌더링까지 다 붙여놨는데, 백엔드 `locations` 테이블이 `ward_id` 유니크 upsert라 이력이 없어서 현재는 빈 동선. 백엔드팀에 스펙 전달함: ① insert-only `location_history` 테이블 추가(기존 upsert 테이블은 SSE용으로 그대로 둠) ② `GET /api/locations/{wardId}/history?date=YYYY-MM-DD`(GUARDIAN) 신설. 프론트는 `api/location.js`의 `getLocationHistory`로 이미 호출 중 — 엔드포인트 생기는 순간 바로 동작
+- [ ] ★ **실기기에서 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 어느 것이 `pRaw`를 0.5 위로 올리는지 시연 전 확정
 - [ ] 3차 이상유형 분류 모델
 - [x] FCM 푸시 **프론트 연동 완료**(`expo-notifications` + `google-services.json`, 네이티브 FCM 토큰 등록/해제 + 알림 탭 네비게이션). ⚠️ 실발송은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 + EAS dev build 필요
-- [ ] ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** + activityClass 표시 UI (뛰기/계단)
+- [ ] ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** (시연은 정지/평지걸음만 다루므로 전용 UI는 만들지 않음 — 시연 모드에 클래스명만 표시)
 - [ ] SQLite 오프라인 저장 → 동기화
 - [ ] Google Play 출시

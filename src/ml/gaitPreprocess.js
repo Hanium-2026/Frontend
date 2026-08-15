@@ -29,11 +29,17 @@ export function resampleWindow(window) {
   return pad.concat(window);
 }
 
-// 정지 판정 휴리스틱 (raw g/rad/s 기준, 방향 무관). 거의 안 움직이면 모델 추론 없이 STATIONARY로 단축.
+// 정지 게이트 임계 — 시연 모드에서 실측치와 나란히 표시하므로 export(화면 하드코딩 금지).
+export const STATIONARY_ACC_STD = 0.025;   // g
+export const STATIONARY_GYRO_AVG = 0.04;   // rad/s
+
+// 움직임 세기 측정 + 정지 판정 (raw g/rad/s 기준, 방향 무관).
+// 거의 안 움직이면 모델 추론 없이 STATIONARY로 단축한다.
 // 1차 모델이 정지 자세를 잘 못 거르므로(주머니 도메인), 이 게이트가 sitting/standing 필터를 담당한다.
-export function isStationary(samples) {
+// 판정 boolean만이 아니라 실측치(accStd/gyroAvg)를 함께 반환 — 시연에서 "왜 정지인지"를 숫자로 보여준다.
+export function motionLevel(samples) {
   const n = samples.length;
-  if (!n) return true;
+  if (!n) return { stationary: true, accStd: 0, gyroAvg: 0 };
   let mean = 0;
   const accMag = new Array(n);
   let gyroSum = 0;
@@ -49,7 +55,11 @@ export function isStationary(samples) {
   for (let i = 0; i < n; i++) varSum += (accMag[i] - mean) ** 2;
   const accStd = Math.sqrt(varSum / n);
   const gyroAvg = gyroSum / n;
-  return accStd < 0.025 && gyroAvg < 0.04;
+  return {
+    stationary: accStd < STATIONARY_ACC_STD && gyroAvg < STATIONARY_GYRO_AVG,
+    accStd,
+    gyroAvg,
+  };
 }
 
 // 분당 걸음 수(cadence) 추정 — 동적 가속도 크기의 피크를 센다. (정확한 보행수가 아닌 추정치)
@@ -159,6 +169,20 @@ export function createTurnDetector() {
     },
     get turning() { return turning; },
   };
+}
+
+// 실시간 리듬(spm) — 최근 windowMs 안에 확정된 걸음들의 '실제 간격'으로 산출.
+// estimateCadence(윈도우 피크 추정)는 2초마다 값이 튀어 화면에서 덜덜 떨린다. 이쪽은 리듬 게이팅을
+// 통과한 걸음만 쓰므로 안정적이고, 구간 시작 직후에도 과소평가되지 않는다(경과시간이 아닌 간격 기준).
+export function recentCadence(steps, nowMs, windowMs = 10000) {
+  const from = nowMs - windowMs;
+  let i = steps.length - 1;
+  while (i >= 0 && steps[i].t >= from) i--;
+  const recent = steps.slice(i + 1);
+  if (recent.length < 2) return null;
+  const span = recent[recent.length - 1].t - recent[0].t;
+  if (span <= 0) return null;
+  return Math.round(((recent.length - 1) / span) * 60000);
 }
 
 // 걸음 지표(변동성·좌우대칭성) — 회전 걸음은 제외하고 직진 '연속 구간(bout)'별로 산출.

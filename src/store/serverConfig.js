@@ -6,7 +6,7 @@ import { getItem, setItem, removeItem } from './storage';
 const BACKEND_KEY = 'nevo.serverConfig.backend';
 
 // 백엔드(Spring) — Render 배포 주소.
-export const DEFAULT_BACKEND_BASE = 'https://backend-xws4.onrender.com';
+export const DEFAULT_BACKEND_BASE = 'https://backend-fao4.onrender.com';
 
 let _backend = DEFAULT_BACKEND_BASE;
 

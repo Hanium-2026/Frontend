@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Pressable, ActivityIndicator } from 'react-native';
 import Text from '../../components/Text';
-import Svg, { Rect, Path, Circle } from 'react-native-svg';
+import { NaverMapView, NaverMapMarkerOverlay, NaverMapPathOverlay } from '@mj-studio/react-native-naver-map';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EventSource from 'react-native-sse';
@@ -11,7 +11,7 @@ import Pill from '../../components/Pill';
 import Avatar from '../../components/Avatar';
 import TabBar from '../../components/TabBar';
 import { getMyWards } from '../../api/links';
-import { locationStreamUrl } from '../../api/location';
+import { locationStreamUrl, getLocationHistory } from '../../api/location';
 import { tokenStore } from '../../store/tokenStore';
 
 const CARE_TABS = [
@@ -21,6 +21,12 @@ const CARE_TABS = [
   { icon: 'doc', label: '리포트', path: '/(caregiver)/report' },
   { icon: 'settings', label: '설정', path: '/(caregiver)/settings' },
 ];
+
+// 좌표 수신 전 기본 카메라 — 대한민국 전역이 보이도록 축소.
+const DEFAULT_CAMERA = { latitude: 36.5, longitude: 127.8, zoom: 6.5 };
+
+// 오늘 동선 표시 색상(연두색).
+const TRAIL_COLOR = '#7ED957';
 
 function fmtWhen(iso) {
   if (!iso) return '아직 수신 전';
@@ -34,10 +40,12 @@ export default function CareLocation() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const sourceRef = useRef(null);
+  const mapRef = useRef(null);
   const [wards, setWards] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [location, setLocation] = useState(null);
   const [status, setStatus] = useState('loading');
+  const [trail, setTrail] = useState([]); // 오늘 동선 좌표열
 
   useEffect(() => {
     let alive = true;
@@ -63,9 +71,19 @@ export default function CareLocation() {
       return undefined;
     }
 
+    let alive = true;
     sourceRef.current?.close?.();
     setLocation(null);
     setStatus('connecting');
+    setTrail([]);
+
+    // 오늘 동선 이력 로드(백엔드 history 엔드포인트 도입 전까진 실패 → 빈 동선으로 스킵).
+    getLocationHistory(selectedId)
+      .then((points) => {
+        if (!alive) return;
+        setTrail((points ?? []).map((p) => ({ latitude: p.latitude, longitude: p.longitude })));
+      })
+      .catch(() => {});
 
     const token = tokenStore.getAccess();
     const source = new EventSource(locationStreamUrl(selectedId), {
@@ -80,6 +98,9 @@ export default function CareLocation() {
         const data = JSON.parse(event.data || '{}');
         setLocation(data);
         setStatus('connected');
+        if (data.latitude != null && data.longitude != null) {
+          setTrail((prev) => [...prev, { latitude: data.latitude, longitude: data.longitude }]);
+        }
       } catch {
         setStatus('error');
       }
@@ -91,6 +112,7 @@ export default function CareLocation() {
     source.addEventListener('message', onLocation);
 
     return () => {
+      alive = false;
       source.removeEventListener('open', onOpen);
       source.removeEventListener('error', onError);
       source.removeEventListener('location', onLocation);
@@ -105,27 +127,27 @@ export default function CareLocation() {
   const lng = location?.longitude;
   const online = status === 'connected' && location;
 
+  useEffect(() => {
+    if (lat == null || lng == null) return;
+    mapRef.current?.animateCameraTo({ latitude: lat, longitude: lng, zoom: 16, duration: 600, easing: 'EaseOut' });
+  }, [lat, lng]);
+
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
       <View style={{ height: 420, backgroundColor: '#E8EDF2', overflow: 'hidden' }}>
-        <Svg width="100%" height={420} viewBox="0 0 402 420">
-          <Rect width="402" height="420" fill="#E8EDF2"/>
-          {[0,1,2,3,4,5,6].map(i => (
-            <Rect key={`h${i}`} x="0" y={26+i*60} width="402" height="8" fill="#fff"/>
-          ))}
-          {[0,1,2,3,4,5,6].map(i => (
-            <Rect key={`v${i}`} x={26+i*60} y="0" width="8" height="420" fill="#fff"/>
-          ))}
-          <Rect x="220" y="80" width="120" height="80" rx="10" fill="#D6EAD8"/>
-          <Rect x="60" y="280" width="100" height="120" rx="10" fill="#D6EAD8"/>
-          <Path d="M0 320 Q 80 300 160 320 T 320 300 T 402 320 L 402 350 Q 320 330 240 350 T 80 330 T 0 350 Z" fill="#BFD8EF"/>
-          <Path d="M 80 80 Q 110 110 150 130 Q 200 150 230 200 Q 250 240 270 290 Q 280 320 250 330"
-            fill="none" stroke={T.blue} strokeWidth="4" strokeLinecap="round" strokeDasharray="6 4" opacity="0.8"/>
-          <Circle cx="80" cy="80" r="9" fill="#fff" stroke={T.blue} strokeWidth="3"/>
-          <Circle cx="250" cy="330" r={online ? 24 : 18} fill={online ? T.blue : T.muted} opacity="0.18"/>
-          <Circle cx="250" cy="330" r="12" fill={online ? T.blue : T.muted}/>
-          <Circle cx="250" cy="330" r="5" fill="#fff"/>
-        </Svg>
+        <NaverMapView ref={mapRef} style={{ width: '100%', height: '100%' }} initialCamera={DEFAULT_CAMERA}>
+          {trail.length >= 2 && (
+            <NaverMapPathOverlay coords={trail} width={5} color={TRAIL_COLOR} outlineWidth={1} outlineColor="#4CAF3D"/>
+          )}
+          {lat != null && lng != null && (
+            <NaverMapMarkerOverlay
+              latitude={lat}
+              longitude={lng}
+              anchor={{ x: 0.5, y: 1 }}
+              caption={{ text: selectedWard?.name || '보호 대상' }}
+            />
+          )}
+        </NaverMapView>
 
         <View style={{ position: 'absolute', top: insets.top + 10, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
           <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 }}>
@@ -179,7 +201,7 @@ export default function CareLocation() {
         </View>
 
         <Text style={{ fontSize: 11.5, color: T.muted, lineHeight: 18, marginTop: 14 }}>
-          노약자 SOS 화면에서 위치를 전송하면 이 화면에 최신 좌표가 실시간으로 반영됩니다.
+          어르신 앱이 켜져있는 동안 자동으로 위치가 전송되어 이 화면에 실시간으로 반영됩니다.
         </Text>
       </View>
 

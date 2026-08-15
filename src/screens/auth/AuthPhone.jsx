@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,26 +68,26 @@ export default function AuthPhone() {
         <StepBar step={1}/>
       </View>
 
-      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 24 }}>
-        <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>전화번호를{'\n'}입력해주세요</Text>
-        <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>본인 확인을 위해 인증번호를 보내드려요</Text>
+      <View style={{ flex: 1, paddingHorizontal: 20 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 24, paddingBottom: 8 }}>
+          <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>전화번호를{'\n'}입력해주세요</Text>
+          <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>본인 확인을 위해 인증번호를 보내드려요</Text>
 
-        <View style={{ marginTop: 36 }}>
-          <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontBold, letterSpacing: 0.6 }}>전화번호</Text>
-          <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 2, borderBottomColor: T.blue }}>
-            <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: T.muted }}>+82</Text>
-            <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: digits.length > 0 ? T.ink : T.muted }}>
-              {fmt(digits)}
-            </Text>
+          <View style={{ marginTop: 36 }}>
+            <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontBold, letterSpacing: 0.6 }}>전화번호</Text>
+            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottomWidth: 2, borderBottomColor: T.blue }}>
+              <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: T.muted }}>+82</Text>
+              <Text style={{ fontSize: 28, fontFamily: T.fontBold, color: digits.length > 0 ? T.ink : T.muted }}>
+                {fmt(digits)}
+              </Text>
+            </View>
           </View>
-        </View>
 
-        <View style={{ marginTop: 16, padding: 12, backgroundColor: T.blueWash, borderRadius: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          <Icon.spark width={14} height={14} color={T.blue}/>
-          <Text style={{ fontSize: 12, color: T.body }}>대신 입력해드릴까요? <Text style={{ fontFamily: T.fontBold, color: T.blue }}>음성 안내</Text></Text>
-        </View>
-
-        <View style={{ flex: 1 }}/>
+          <View style={{ marginTop: 16, padding: 12, backgroundColor: T.blueWash, borderRadius: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            <Icon.spark width={14} height={14} color={T.blue}/>
+            <Text style={{ fontSize: 12, color: T.body }}>대신 입력해드릴까요? <Text style={{ fontFamily: T.fontBold, color: T.blue }}>음성 안내</Text></Text>
+          </View>
+        </ScrollView>
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingTop: 16 }}>
           {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (

@@ -9,6 +9,7 @@ import { tokenStore } from '../src/store/tokenStore';
 import { serverConfig } from '../src/store/serverConfig';
 import { fontScale } from '../src/store/fontScale';
 import { registerPushToken } from '../src/notifications/push';
+import { startLocationTracking } from '../src/location/track';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -39,6 +40,11 @@ export default function RootLayout() {
   const router = useRouter();
   useEffect(() => {
     if (ready && tokenStore.isLoggedIn()) registerPushToken();
+  }, [ready]);
+
+  // WARD로 로그인된 상태면 앱 시작 시 자동 위치 전송 시작.
+  useEffect(() => {
+    if (ready && tokenStore.isLoggedIn() && tokenStore.getRole() === 'WARD') startLocationTracking();
   }, [ready]);
 
   // 알림 탭 → 보호자 알림 화면으로 이동. (백엔드 data.type: STROKE_DANGER)

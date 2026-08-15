@@ -10,3 +10,8 @@ export const uploadLocation = (latitude, longitude) =>
 // ⚠️ 이 엔드포인트는 JWT 인증 필요. 표준 EventSource는 Authorization 헤더를 못 보내므로
 //    웹에선 그대로 못 붙고, 네이티브는 헤더 지원 SSE 클라이언트(react-native-sse 등)가 필요.
 export const locationStreamUrl = (wardId) => `${serverConfig.getBackendBase()}/api/locations/stream/${wardId}`;
+
+// GUARDIAN: 하루 동선(위치 이력) 조회. date 생략 시 백엔드가 오늘(KST)로 처리.
+// ⚠️ 백엔드에 history 엔드포인트 도입 전까지는 404 — 도입되면 바로 동작(계약은 AGENTS.md 참고).
+export const getLocationHistory = (wardId, date) =>
+  api.get(`/api/locations/${wardId}/history${date ? `?date=${date}` : ''}`);

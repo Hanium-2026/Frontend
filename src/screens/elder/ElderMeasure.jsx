@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions, Alert, Modal } from 'react-native';
+import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions, Alert } from 'react-native';
 import Text from '../../components/Text';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,9 +11,9 @@ import Icon from '../../icons';
 import Card from '../../components/Card';
 import IMUTrace from '../../components/IMUTrace';
 import SparkLine from '../../components/SparkLine';
-import TrustChart from '../../components/TrustChart';
+import DemoMonitor from '../../components/DemoMonitor';
 import { useGaitPipeline } from '../../ml/useGaitPipeline';
-import { createStepCounter, createTurnDetector, computeGaitMetrics } from '../../ml/gaitPreprocess';
+import { createStepCounter, createTurnDetector, computeGaitMetrics, recentCadence } from '../../ml/gaitPreprocess';
 import { sessionStore } from '../../store/sessionStore';
 import { tokenStore } from '../../store/tokenStore';
 import { ensureSession, uploadData, stopSession, uploadAnalysis, toMinuteAt } from '../../api/session';
@@ -33,10 +33,11 @@ const aggregateMinute = (m) => ({
   dangerCount: m.danger,
 });
 
-// 상태 라벨: 정지 / 걷기 / 대기.
+// 상태 라벨: 정지 / 걷기 / 보행 아님(뛰기·계단 등 2차 미적용) / 대기.
 const stateLabel = (result) => {
   if (result?.activityState === 'STATIONARY') return '정지';
-  if (result?.score != null) return '걷기';
+  if (result?.activityState === 'WALKING') return '걷기';
+  if (result?.activityState === 'OTHER') return '보행 아님';
   return '대기';
 };
 
@@ -89,13 +90,16 @@ export default function ElderMeasure() {
   const [steps, setSteps] = useState(0);         // 연속 검출기 누적 걸음 수
   const [shownScore, setShownScore] = useState(null);   // 화면에 유지되는 마지막 점수(정지 중에도 표시)
   const [shownRisk, setShownRisk] = useState('NORMAL');
+  const [shownP, setShownP] = useState({ raw: null, smooth: null });  // 마지막 P(이상) — 정지 중엔 값이 비지 않고 멈춘다
   const [status, setStatus] = useState('센서 준비 중...');
   const [trace, setTrace] = useState({ x: null, y: null, z: null });  // 실시간 3축 파형
   const [showSignal, setShowSignal] = useState(false);  // 측정 신호(파형) 펼침 — 기본 숨김
   const [scoreHist, setScoreHist] = useState([]);  // 걷기 평활 점수 이력(라이브 그래프)
   const [rawHist, setRawHist] = useState([]);      // 걷기 원(raw) 점수 이력 — 모니터링 차트의 '흔들린 순간'용
-  const [showMonitor, setShowMonitor] = useState(false);  // 시연용 모니터링 오버레이
+  const [showMonitor, setShowMonitor] = useState(false);  // 시연 모드 오버레이
   const [elapsed, setElapsed] = useState(0);       // 측정 경과 시간(초)
+  const [cadenceLive, setCadenceLive] = useState(null);  // 최근 10초 걸음 간격 기반 리듬(spm)
+  const [metrics, setMetrics] = useState(null);          // 라이브 {variability, symmetry} (직진 걸음 부족하면 null)
 
   // 측정 화면 진입 시 세션 확보(진행 중이면 복원, 없으면 시작). 실패해도 측정은 계속.
   useEffect(() => {
@@ -145,6 +149,7 @@ export default function ElderMeasure() {
           setResult(r);
           setShownScore(r.score);         // 마지막 점수 갱신(정지 전환돼도 이 값이 계속 보임)
           setShownRisk(r.riskLevel);
+          setShownP({ raw: r.pRaw, smooth: r.pAbnormal });
           setStatus('측정 중');
           const a = accRef.current;
           a.rawP.push(r.pRaw);              // 판정용 원시 P(이상)
@@ -167,9 +172,9 @@ export default function ElderMeasure() {
             }
           }
         } else {
-          // 정지 — 보행 대기 (모델 추론 생략)
-          setResult({ activityState: 'STATIONARY' });
-          setStatus('정지 · 보행 대기');
+          // 걷기 아님 — 2차 판정 생략. 파이프라인 결과를 그대로 넘겨 시연 모드가 1차 판정을 표시할 수 있게 한다.
+          setResult(r);
+          setStatus(r.activityState === 'OTHER' ? '보행 아님 · 판정 생략' : '정지 · 보행 대기');
         }
       }
     });
@@ -185,9 +190,14 @@ export default function ElderMeasure() {
     return () => { aSub.remove(); gSub.remove(); clearInterval(traceTimer); };
   }, []);
 
-  // 측정 경과 시간 (1초마다 증가)
+  // 측정 경과 시간 + 라이브 보행 지표 (1초마다). 지표는 순수 함수 계산이라 비용 무시 가능.
   useEffect(() => {
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    const t = setInterval(() => {
+      setElapsed((e) => e + 1);
+      const st = stepperRef.current.steps;
+      setCadenceLive(recentCadence(st, Date.now()));
+      setMetrics(computeGaitMetrics(st));
+    }, 1000);
     return () => clearInterval(t);
   }, []);
   const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
@@ -262,6 +272,7 @@ export default function ElderMeasure() {
   };
 
   const doFinish = (lowConfidence) => {
+    setShowMonitor(false);   // 시연 모드에서 완료해도 결과 화면이 모달에 가리지 않게
     const summary = buildSummary(lowConfidence);
     sessionStore.set(summary);
 
@@ -450,57 +461,33 @@ export default function ElderMeasure() {
         </Pressable>
       </View>
 
-      {/* 시연용 모니터링 오버레이 — 화면 공유로 "평균이 얼마고 언제 흔들렸나"를 보여줌 */}
-      <Modal visible={showMonitor} animationType="slide" onRequestClose={() => setShowMonitor(false)}>
-        <View style={{ flex: 1, backgroundColor: T.bg, paddingTop: insets.top + 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 20, fontFamily: T.fontExtraBold, color: T.ink }}>실시간 모니터링</Text>
-            <Pressable onPress={() => setShowMonitor(false)} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 12, backgroundColor: T.blueWash }}>
-              <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.blue }}>닫기</Text>
-            </Pressable>
-          </View>
-
-          {/* 요약: 평균 · 최저 · 현재 */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginTop: 4 }}>
-            {[['평균', avgScoreLive], ['최저', minScoreLive], ['현재', shownScore]].map(([l, v], k) => (
-              <Card key={k} pad={12} style={{ flex: 1, borderRadius: 14 }}>
-                <Text style={{ fontSize: 13, color: T.body, fontFamily: T.fontSemiBold }}>{l}</Text>
-                <Text style={{ fontSize: 28, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.5 }}>{v != null ? v : '--'}</Text>
-              </Card>
-            ))}
-          </View>
-
-          {/* 신뢰 차트 */}
-          <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-            <Card pad={14} style={{ borderRadius: 18 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={{ fontSize: 16, color: T.ink, fontFamily: T.fontBold }}>점수 변화</Text>
-                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>측정 {mmss}</Text>
-              </View>
-              {chartData.length >= 2 ? (
-                <TrustChart data={chartData} avg={avgScoreLive} height={220}/>
-              ) : (
-                <View style={{ height: 220, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 15, color: T.muted, fontFamily: T.fontMedium }}>걷기를 시작하면 그래프가 그려져요</Text>
-                </View>
-              )}
-              <Text style={{ fontSize: 12.5, color: T.muted, fontFamily: T.fontMedium, marginTop: 10, lineHeight: 19 }}>
-                파란 선 = 평활 추세 · 점 = 매 순간 원점수(흔들린 순간이 튐) · 파란 점선 = 평균 · 초록 점선 = 70 기준
-              </Text>
-            </Card>
-          </View>
-
-          {/* 라이브 지표 */}
-          <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginTop: 12 }}>
-            {[['상태', stateLabel(result)], ['걸음', `${steps}`], ['거리', `약 ${distanceM}m`], ['케이던스', result?.cadence != null ? `${result.cadence}` : '—']].map(([l, v], k) => (
-              <Card key={k} pad={12} style={{ flex: 1, borderRadius: 14 }}>
-                <Text style={{ fontSize: 12.5, color: T.body, fontFamily: T.fontSemiBold }}>{l}</Text>
-                <Text style={{ fontSize: String(v).length > 5 ? 15 : 19, fontFamily: T.fontExtraBold, color: T.ink, marginTop: 2 }}>{v}</Text>
-              </Card>
-            ))}
-          </View>
-        </View>
-      </Modal>
+      {/* 시연 모드 — 화면 녹화용 고밀도 진단 패널(스크롤 없이 한 화면, 측정 완료까지 여기서).
+          Modal이 아니라 오버레이다 — 안드로이드 Modal은 별도 윈도우라 safe-area가 0으로 잡혀
+          하단 내비게이션 바에 버튼이 먹힌다. */}
+      {showMonitor && (
+      <DemoMonitor
+        onClose={() => setShowMonitor(false)}
+        onFinish={finish}
+        live={{
+          mmss,
+          walkWindows: accRef.current.rawP.length,
+          minWindows: MIN_WALK_WINDOWS,
+          result,
+          score,
+          riskLevel: shownRisk,
+          pRaw: shownP.raw,
+          pSmooth: shownP.smooth,
+          chartData,
+          avgScore: avgScoreLive,
+          minScore: minScoreLive,
+          trace,
+          steps,
+          distanceM,
+          cadenceLive,
+          metrics,
+        }}
+      />
+      )}
     </View>
   );
 }
