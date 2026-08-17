@@ -1,5 +1,4 @@
 // NEVO backend (Spring) API client.
-// Separate from the AI score server in src/api.js (:8000).
 import { tokenStore } from '../store/tokenStore';
 import { serverConfig } from '../store/serverConfig';
 

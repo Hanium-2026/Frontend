@@ -19,8 +19,7 @@ const CARE_TABS = [
   { icon: 'home',     label: '대시보드', path: '/(caregiver)/' },
   { icon: 'bell',     label: '알림',    path: '/(caregiver)/alerts' },
   { icon: 'pin',      label: '위치',    path: '/(caregiver)/location' },
-  { icon: 'doc',      label: '리포트',  path: '/(caregiver)/report' },
-  { icon: 'settings', label: '설정',    path: '/(caregiver)/settings' },
+  { icon: 'user',     label: '내정보',  path: '/(caregiver)/profile' },
 ];
 
 const toneScore = { ok: T.ok, caution: T.caution, danger: T.danger };
@@ -77,10 +76,6 @@ export default function CareDashboard() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Pressable onPress={goInvite} style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
               <Icon.plus width={19} height={19} color="#fff"/>
-            </Pressable>
-            <Pressable style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon.bell width={18} height={18} color={T.body}/>
-              <View style={{ position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: T.danger, borderWidth: 1.5, borderColor: '#fff' }}/>
             </Pressable>
             <Pressable onPress={() => router.push('/(caregiver)/profile')}>
               <Avatar name={meName} size={38} tone={[T.blueSoft, T.blueDark]}/>

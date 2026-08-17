@@ -6,7 +6,6 @@ import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
 import SectionLabel from '../../components/SectionLabel';
-import Pill from '../../components/Pill';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
@@ -23,25 +22,13 @@ const ELDER_TABS = [
   { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
 ];
 
-const measureSettings = [
-  ['walk',   '자동 측정',    '하루 종일', true],
-  ['bell',   '측정 알림 시간', '오전 9시', null],
-  ['shield', '낙상 감지',     '켜짐',    true],
-];
-
-const healthItems = [
-  ['heart', '건강 상태',   '4개 등록'],
-  ['doc',   '복용 중인 약', '3개 등록'],
-  ['phone', '주치의 / 병원', '서울 봉천의원'],
-];
-
 const etcItems = [
   ['settings', '앱 설정',       '/(elder)/app-settings'],
   ['shield',   '개인정보 보호',  '/(elder)/privacy'],
   ['doc',      '이용 가이드',    '/(elder)/guide'],
 ];
 
-const CURRENT_YEAR = 2026;
+const CURRENT_YEAR = new Date().getFullYear();
 
 export default function ElderProfile() {
   const router = useRouter();
@@ -58,6 +45,7 @@ export default function ElderProfile() {
     ward.gender === 'MALE' ? '남' : '여',
     ward.birthDate ? `${CURRENT_YEAR - new Date(ward.birthDate).getFullYear()}세` : null,
     ward.height ? `${Math.round(ward.height)}cm` : null,
+    ward.weight ? `${Math.round(ward.weight)}kg` : null,
   ].filter(Boolean).join(' · ') : (me?.phone || '');
 
   const handleLogout = () => {
@@ -107,48 +95,6 @@ export default function ElderProfile() {
         </View>
 
         <View style={{ paddingHorizontal: 16, marginTop: 20 }}>
-          <SectionLabel>측정</SectionLabel>
-          <Card pad={0} style={{ borderRadius: 18 }}>
-            {measureSettings.map(([i, t, d, on], k) => {
-              const I = Icon[i];
-              return (
-                <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: k < measureSettings.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
-                  <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <I width={18} height={18} color={T.blue}/>
-                  </View>
-                  <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
-                  {on !== null ? (
-                    <View style={{ width: 40, height: 24, borderRadius: 12, backgroundColor: on ? T.blue : T.line }}>
-                      <View style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 3, elevation: 2 }}/>
-                    </View>
-                  ) : (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Text style={{ fontSize: T.fs.label, color: T.body }}>{d}</Text>
-                      <Icon.chevron width={14} height={14} color={T.muted}/>
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </Card>
-
-          <SectionLabel>의료 정보</SectionLabel>
-          <Card pad={0} style={{ borderRadius: 18 }}>
-            {healthItems.map(([i, t, d], k) => {
-              const I = Icon[i];
-              return (
-                <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: k < healthItems.length - 1 ? 1 : 0, borderBottomColor: T.line }}>
-                  <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
-                    <I width={18} height={18} color={T.blue}/>
-                  </View>
-                  <Text style={{ flex: 1, fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{t}</Text>
-                  <Text style={{ fontSize: T.fs.label, color: T.body }}>{d}</Text>
-                  <Icon.chevron width={14} height={14} color={T.muted}/>
-                </View>
-              );
-            })}
-          </Card>
-
           <SectionLabel>기타</SectionLabel>
           <Card pad={0} style={{ borderRadius: 18 }}>
             {etcItems.map(([i, t, path], k) => {

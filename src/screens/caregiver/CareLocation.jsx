@@ -18,8 +18,7 @@ const CARE_TABS = [
   { icon: 'home', label: '대시보드', path: '/(caregiver)/' },
   { icon: 'bell', label: '알림', path: '/(caregiver)/alerts' },
   { icon: 'pin', label: '위치', path: '/(caregiver)/location' },
-  { icon: 'doc', label: '리포트', path: '/(caregiver)/report' },
-  { icon: 'settings', label: '설정', path: '/(caregiver)/settings' },
+  { icon: 'user', label: '내정보', path: '/(caregiver)/profile' },
 ];
 
 // 좌표 수신 전 기본 카메라 — 대한민국 전역이 보이도록 축소.
@@ -149,20 +148,17 @@ export default function CareLocation() {
           )}
         </NaverMapView>
 
-        <View style={{ position: 'absolute', top: insets.top + 10, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+        <View style={{ position: 'absolute', top: insets.top + 10, left: 16, right: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
           <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 }}>
             <Icon.arrowLeft width={18} height={18} color={T.body}/>
           </Pressable>
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 6 }}>
+          <View style={{ flex: 1, alignSelf: 'center', backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 6 }}>
             {status === 'connecting' ? <ActivityIndicator color={T.blue}/> : <Avatar name={selectedWard?.name || '가족'} size={26}/>}
             <View>
               <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: T.ink, lineHeight: 16 }}>{selectedWard?.name || '연동 가족 없음'}</Text>
               <Text style={{ fontSize: 10, color: online ? T.ok : T.muted, fontFamily: T.fontSemiBold, marginTop: 2 }}>{online ? '● 실시간 연결' : '● 위치 대기'}</Text>
             </View>
           </View>
-          <Pressable style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4 }}>
-            <Icon.more width={18} height={18} color={T.body}/>
-          </Pressable>
         </View>
 
         {wards.length > 1 && (

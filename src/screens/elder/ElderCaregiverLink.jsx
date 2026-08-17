@@ -10,6 +10,14 @@ import { ApiError } from '../../api/client';
 
 const PHONE_RE = /^01[016789]\d{7,8}$/;
 
+// 만료 시각(백엔드 LocalDateTime) → "오후 3:24까지 사용할 수 있어요"
+function fmtExpiry(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })}까지 사용할 수 있어요`;
+}
+
 const STEPS = [
   '보호자 전화번호로 연동 코드를 만들어요.',
   '보호자에게 코드를 알려주세요.',
@@ -54,6 +62,9 @@ export default function ElderCaregiverLink() {
                   <Text style={{ fontSize: T.fs.caption, color: 'rgba(255,255,255,0.9)' }}>보호자에게 알려주세요</Text>
                 </View>
                 <Text style={{ fontSize: 42, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: 6, marginTop: 8 }}>{code.code}</Text>
+                {!!fmtExpiry(code.expiresAt) && (
+                  <Text style={{ fontSize: T.fs.label, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold, marginTop: 6 }}>{fmtExpiry(code.expiresAt)}</Text>
+                )}
                 <Pressable onPress={() => setCode(null)} style={{ marginTop: 14, paddingVertical: 15, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center' }}>
                   <Text style={{ fontSize: T.fs.sub, fontFamily: T.fontBold, color: '#fff' }}>다른 보호자 코드 만들기</Text>
                 </Pressable>

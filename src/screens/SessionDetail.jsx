@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { View, ScrollView, ActivityIndicator } from 'react-native';
-import Text from '../../components/Text';
+import Text from '../components/Text';
 import { useLocalSearchParams } from 'expo-router';
-import T from '../../tokens';
-import Icon from '../../icons';
-import AppHeader from '../../components/AppHeader';
-import Card from '../../components/Card';
-import Pill from '../../components/Pill';
-import SectionLabel from '../../components/SectionLabel';
-import { getSessionReport } from '../../api/reports';
-import { riskTone, RISK_LABEL } from '../../risk';
+import T from '../tokens';
+import Icon from '../icons';
+import AppHeader from '../components/AppHeader';
+import Card from '../components/Card';
+import Pill from '../components/Pill';
+import SectionLabel from '../components/SectionLabel';
+import { getSessionReport } from '../api/reports';
+import { riskTone, RISK_LABEL } from '../risk';
 
 const round = (n) => (n == null ? '--' : String(Math.round(n)));
 
@@ -19,7 +19,7 @@ function fmtDate(iso) {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function ElderSessionDetail() {
+export default function SessionDetail() {
   const { sessionId } = useLocalSearchParams();
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState(null);
@@ -38,14 +38,14 @@ export default function ElderSessionDetail() {
     ['평균 점수', round(report?.avgScore), '점'],
     ['최저 점수', round(report?.minScore), '점'],
     ['최고 점수', round(report?.maxScore), '점'],
-    ['대칭 점수', round(report?.symmetryScore), report?.symmetryScore == null ? '' : '%'],
-    ['변동성', report?.variabilityScore != null ? report.variabilityScore.toFixed(2) : '--', ''],
+    ['좌우 대칭', round(report?.symmetryScore), report?.symmetryScore == null ? '' : '%'],
+    ['변동성', round(report?.variabilityScore), report?.variabilityScore == null ? '' : '%'],
     ['위험 횟수', String(report?.dangerCount ?? 0), '회'],
   ];
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader title="측정 상세" sub={fmtDate(report?.startedAt || report?.createdAt)} onBack/>
+      <AppHeader title="측정 상세" sub={fmtDate(report?.createdAt)} onBack/>
 
       {loading ? (
         <View style={{ paddingTop: 80, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>

@@ -25,10 +25,10 @@ function fmtDate(iso) {
   return `${d.getMonth() + 1}/${d.getDate()} 연결됨`;
 }
 
-function MenuRow({ icon, title, sub, onPress, divider }) {
+function MenuRow({ icon, title, sub, onPress }) {
   const IconCmp = Icon[icon];
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderBottomWidth: divider ? 1 : 0, borderBottomColor: T.line }}>
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 }}>
       <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: T.blueSoft, alignItems: 'center', justifyContent: 'center' }}>
         <IconCmp width={24} height={24} color={T.blue}/>
       </View>
@@ -92,13 +92,6 @@ export default function ElderCaregiver() {
               title="보호자와 연결하기"
               sub="연동 코드로 가족을 연결해요"
               onPress={() => router.push('/(elder)/caregiver-link')}
-              divider
-            />
-            <MenuRow
-              icon="share"
-              title="공유하는 정보"
-              sub="보호자에게 공유할 정보를 선택해요"
-              onPress={() => router.push('/(elder)/caregiver-sharing')}
             />
           </Card>
         </View>

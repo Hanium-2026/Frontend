@@ -58,6 +58,15 @@ export default function ElderHistory() {
   const weeklyAvg = trend.length ? (trend.reduce((a, b) => a + b, 0) / trend.length) : null;
   const delta = trend.length >= 2 ? round(trend[trend.length - 1] - trend[0]) : null;
 
+  // 기간 요약 — 백엔드 dailyScores가 주는 일별 집계를 합산.
+  const totalSessions = daily.reduce((a, d) => a + (d.sessionCount ?? 0), 0);
+  const totalDanger = daily.reduce((a, d) => a + (d.dangerCount ?? 0), 0);
+  const mins = daily.map((d) => d.minScore).filter((v) => v != null);
+  const maxs = daily.map((d) => d.maxScore).filter((v) => v != null);
+  const scoreRange = mins.length && maxs.length
+    ? `${round(Math.min(...mins))}~${round(Math.max(...maxs))}`
+    : '--';
+
   const records = sessions.map((s) => {
     const tone = riskTone(s.avgScore, s.riskLevel);
     const noteByTone = tone === 'danger' ? '위험 의심' : tone === 'caution' ? '이상 의심' : '안정';
@@ -73,15 +82,7 @@ export default function ElderHistory() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader
-        title="기록"
-        sub="지난 30일의 걸음 건강"
-        right={
-          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.filter width={18} height={18} color={T.muted}/>
-          </View>
-        }
-      />
+      <AppHeader title="기록" sub="지난 7일의 걸음 건강"/>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {loading ? (
@@ -114,6 +115,18 @@ export default function ElderHistory() {
                     <BarChart data={trend} height={92} color={T.blue} max={100} labels={dayLabels}/>
                   </View>
                 )}
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+                  {[
+                    ['측정 횟수', `${totalSessions}회`, T.ink],
+                    ['점수 범위', scoreRange, T.ink],
+                    ['위험 신호', `${totalDanger}회`, totalDanger > 0 ? T.danger : T.ink],
+                  ].map(([l, v, c], i) => (
+                    <View key={i} style={{ flex: 1, backgroundColor: T.bg, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10 }}>
+                      <Text style={{ fontSize: T.fs.caption, color: T.muted, fontFamily: T.fontSemiBold }}>{l}</Text>
+                      <Text style={{ fontSize: T.fs.body, color: c, fontFamily: T.fontExtraBold, marginTop: 4 }}>{v}</Text>
+                    </View>
+                  ))}
+                </View>
               </Card>
             </View>
 

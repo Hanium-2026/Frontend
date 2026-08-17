@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import Text from '../../components/Text';
+import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
@@ -12,8 +13,7 @@ const CARE_TABS = [
   { icon: 'home',     label: '대시보드', path: '/(caregiver)/' },
   { icon: 'bell',     label: '알림',    path: '/(caregiver)/alerts' },
   { icon: 'pin',      label: '위치',    path: '/(caregiver)/location' },
-  { icon: 'doc',      label: '리포트',  path: '/(caregiver)/report' },
-  { icon: 'settings', label: '설정',    path: '/(caregiver)/settings' },
+  { icon: 'user',     label: '내정보',  path: '/(caregiver)/profile' },
 ];
 
 // 현재 백엔드 AlertType은 STROKE_DANGER 한 종류.
@@ -29,6 +29,7 @@ function fmtAgo(iso) {
 }
 
 export default function CareAlerts() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState([]);
 
@@ -67,20 +68,26 @@ export default function CareAlerts() {
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100, gap: 10 }} showsVerticalScrollIndicator={false}>
           {alerts.map((a) => (
-            <Card key={a.alertId} pad={14} style={{ borderRadius: 16, borderLeftWidth: 3, borderLeftColor: T.danger }}>
-              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FCE0E0', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon.brain width={20} height={20} color={T.danger}/>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <Text style={{ fontSize: 13.5, fontFamily: T.fontBold, color: T.ink, flex: 1 }}>{TYPE_TITLE[a.type] || a.type}</Text>
-                    <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontMedium }}>{fmtAgo(a.createdAt)}</Text>
+            <Pressable
+              key={a.alertId}
+              disabled={a.sessionId == null}
+              onPress={() => router.push({ pathname: '/(caregiver)/session-detail', params: { sessionId: String(a.sessionId) } })}>
+              <Card pad={14} style={{ borderRadius: 16, borderLeftWidth: 3, borderLeftColor: T.danger }}>
+                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FCE0E0', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon.brain width={20} height={20} color={T.danger}/>
                   </View>
-                  <Text style={{ fontSize: 12, color: T.muted, marginTop: 2, fontFamily: T.fontMedium }}>{a.who} · {a.message}</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <Text style={{ fontSize: 13.5, fontFamily: T.fontBold, color: T.ink, flex: 1 }}>{TYPE_TITLE[a.type] || a.type}</Text>
+                      <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontMedium }}>{fmtAgo(a.createdAt)}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: T.muted, marginTop: 2, fontFamily: T.fontMedium }}>{a.who} · {a.message}</Text>
+                  </View>
+                  {a.sessionId != null && <Icon.chevron width={16} height={16} color={T.muted} style={{ alignSelf: 'center' }}/>}
                 </View>
-              </View>
-            </Card>
+              </Card>
+            </Pressable>
           ))}
         </ScrollView>
       )}

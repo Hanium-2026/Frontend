@@ -72,11 +72,20 @@ export default function CarePatientDetail() {
 
   const fmtDate = (iso) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}`; };
 
+  // 기간 요약 — dailyScores 일별 집계 합산 (오늘 지표와 별개)
+  const totalSessions = daily.reduce((a, d) => a + (d.sessionCount ?? 0), 0);
+  const totalDanger = daily.reduce((a, d) => a + (d.dangerCount ?? 0), 0);
+  const mins = daily.map((d) => d.minScore).filter((v) => v != null);
+  const maxs = daily.map((d) => d.maxScore).filter((v) => v != null);
+  const scoreRange = mins.length && maxs.length
+    ? `${round(Math.min(...mins))}~${round(Math.max(...maxs))}`
+    : '--';
+
   const metrics = tm ? [
     { l: '평균 점수', v: String(round(tm.avgScore)), u: '점' },
     { l: '점수 범위', v: `${round(tm.minScore)}~${round(tm.maxScore)}`, u: '' },
     { l: '좌우 대칭', v: tm.symmetryScore != null ? String(round(tm.symmetryScore)) : '--', u: '%' },
-    { l: '변동성', v: tm.variabilityScore != null ? tm.variabilityScore.toFixed(2) : '--', u: '' },
+    { l: '변동성', v: tm.variabilityScore != null ? String(round(tm.variabilityScore)) : '--', u: '%' },
     { l: '측정 횟수', v: String(tm.sessionCount ?? 0), u: '회' },
     { l: '위험 횟수', v: String(tm.dangerCount ?? 0), u: '회' },
   ] : [];
@@ -90,10 +99,7 @@ export default function CarePatientDetail() {
         <Avatar name={name} size={40}/>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 16, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.3 }}>{name}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
-            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: T.ok }}/>
-            <Text style={{ fontSize: 11.5, color: T.muted, fontFamily: T.fontSemiBold }}>최근 {days}일 보행 추이</Text>
-          </View>
+          <Text style={{ fontSize: 11.5, color: T.muted, fontFamily: T.fontSemiBold, marginTop: 1 }}>최근 {days}일 보행 추이</Text>
         </View>
       </View>
 
@@ -160,6 +166,24 @@ export default function CarePatientDetail() {
               </View>
             </Card>
           </View>
+
+          {n > 0 && (
+            <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+              <SectionLabel>기간 요약 ({days}일)</SectionLabel>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[
+                  ['측정 횟수', `${totalSessions}회`, T.ink],
+                  ['점수 범위', scoreRange, T.ink],
+                  ['위험 신호', `${totalDanger}회`, totalDanger > 0 ? T.danger : T.ink],
+                ].map(([l, v, c], i) => (
+                  <Card key={i} pad={12} style={{ flex: 1, borderRadius: 14 }}>
+                    <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontSemiBold }}>{l}</Text>
+                    <Text style={{ fontSize: 17, color: c, fontFamily: T.fontExtraBold, marginTop: 4 }}>{v}</Text>
+                  </Card>
+                ))}
+              </View>
+            </View>
+          )}
 
           {metrics.length > 0 && (
             <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
