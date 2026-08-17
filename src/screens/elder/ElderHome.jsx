@@ -199,6 +199,24 @@ export default function ElderHome() {
           </Pressable>
         </View>
 
+        {/* 긴급 도움 — 길게 눌러 보호자에게 위치 전송 */}
+        <View style={{ paddingHorizontal: 16, marginTop: gap }}>
+          <Pressable onPress={() => router.push('/(elder)/sos')}>
+            <Card pad={16} style={{ borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: T.dangerSoft, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon.sos width={26} height={26} color={T.danger}/>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: T.ink }}>긴급 도움</Text>
+                <Text style={{ fontSize: 14, color: T.body, marginTop: 3, fontFamily: T.font, lineHeight: 19 }}>
+                  위급할 때 보호자에게 현재 위치를 보낼 수 있어요
+                </Text>
+              </View>
+              <Icon.chevron width={20} height={20} color={T.muted}/>
+            </Card>
+          </Pressable>
+        </View>
+
         {/* 이번 주 추이 — 기록 있으면 차트, 없으면 측정 안내 */}
         <View style={{ paddingHorizontal: 16, marginTop: gap }}>
           {trend.length > 0 ? (

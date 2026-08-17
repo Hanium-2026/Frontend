@@ -73,7 +73,7 @@ export default function AuthRolePick() {
             </View>
           </View>
           <View style={{ marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: T.line, gap: 8 }}>
-            {[['walk','평소처럼 걸으면 자동 측정'],['brain','AI가 보행 패턴을 분석'],['sos','비상 시 가족과 119에 알림']].map(([ic, t], k) => {
+            {[['walk','평소처럼 걸으면 자동 측정'],['brain','AI가 보행 패턴을 분석'],['sos','비상 시 보호자에게 위치 전송']].map(([ic, t], k) => {
               const I = Icon[ic];
               return (
                 <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>

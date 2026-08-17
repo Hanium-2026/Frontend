@@ -22,10 +22,7 @@ export default function ElderSOS() {
     getMyGuardians().then((list) => setGuardians(list ?? [])).catch(() => setGuardians([]));
   }, []);
 
-  const contacts = [
-    ...guardians.map((g) => ({ i: 'family', t: g.name || '보호자', s: '연결된 보호자', on: true })),
-    { i: 'phone', t: '119 응급 신고', s: '위치와 함께 전송', on: true },
-  ];
+  const contacts = guardians.map((g) => ({ i: 'family', t: g.name || '보호자', s: '연결된 보호자', on: true }));
 
   const sendEmergencyLocation = async () => {
     if (sending) return;
@@ -86,8 +83,15 @@ export default function ElderSOS() {
         </View>
 
         <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
-          <SectionLabel>알림이 전달될 곳</SectionLabel>
+          <SectionLabel>내 위치를 볼 수 있는 보호자</SectionLabel>
           <Card pad={0} style={{ borderRadius: 18 }}>
+            {contacts.length === 0 && (
+              <View style={{ padding: 16 }}>
+                <Text style={{ fontSize: T.fs.body, color: T.body, lineHeight: 24 }}>
+                  아직 연결된 보호자가 없어요.{'\n'}보호자를 연결해야 위치를 전달할 수 있어요.
+                </Text>
+              </View>
+            )}
             {contacts.map((c, i) => {
               const I = Icon[c.i];
               return (
