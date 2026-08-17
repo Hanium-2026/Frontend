@@ -291,6 +291,9 @@ export default function ElderMeasure() {
           maxScore: summary.maxScore,
           dangerCount: lowConfidence ? 0 : summary.dangerCount,
           reportSummary: null,
+          variabilityScore: summary.variability,
+          // 백엔드는 asymmetryScore(0~1)를 받아 (1-x)*100으로 symmetryScore를 만든다 → symmetry(100=대칭)를 역변환.
+          asymmetryScore: summary.symmetry != null ? (100 - summary.symmetry) / 100 : null,
         });
       })().catch(() => {});
     }
