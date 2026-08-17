@@ -1,7 +1,10 @@
 # NEVO Frontend — AGENTS.md
 
-> 에이전트(Claude/Codex)가 읽고 작업하는 단일 기준 문서. 작업하며 계속 갱신할 것.
-> 최종 업데이트: 2026-08-13
+> 에이전트(Claude/Codex)가 읽고 작업하는 단일 기준 문서. 매 세션 컨텍스트에 자동 로드된다.
+> 최종 업데이트: 2026-08-18
+>
+> 📌 **넣을 것 / 넣지 말 것**: 이 문서는 **다음 작업의 판단을 바꾸는 것만** 담는다(규칙·계약·열린 작업).
+>    "언제 무엇을 했다"는 경위는 git 히스토리가 정확하므로 여기 쓰지 않는다. 틀린 줄은 없는 줄보다 나쁘다.
 >
 > 📌 **기준 = 개발보고서**: 이 문서의 "목표" 항목은 한이음 개발보고서를 따른다. "현재 구현"과 갭이 있으면
 >    보고서 쪽이 목표이고 코드를 거기에 맞춰 간다(문서를 코드 현실로 후퇴시키지 말 것).
@@ -32,19 +35,26 @@ assets/models/        # on-device TFLite 모델 + scaler
 src/
   api/                # 백엔드 API 클라이언트 (client.js + 도메인별 모듈)
   ml/                 # on-device 보행 분석 (gaitPreprocess.js, useGaitPipeline.js)
-  store/              # tokenStore, serverConfig, sessionStore, storage
-  screens/            # auth | elder | caregiver
+  store/              # tokenStore, serverConfig, sessionStore, storage, fontScale
+  location/track.js   # WARD 포그라운드 자동 위치 전송(30초, AppState 기반)
+  notifications/push.js  # FCM 토큰 등록/해제 + 알림 탭 네비게이션
+  screens/            # auth | elder | caregiver + 역할 공용(ServerConfig, SessionDetail)
   components/ tokens.js icons.jsx risk.js
 docs/                 # LOCAL_TESTING.md, DEV_BUILD.md
 scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 ```
+
+**탭 구성** — WARD: 홈·걷기·기록·보호자·내정보 / GUARDIAN: 대시보드·알림·위치·내정보.
+`TabBar`는 `router.push`라 탭 대상 화면도 `AppHeader onBack`을 함께 쓴다. 탭 항목을 바꾸면 **각 화면의 `CARE_TABS`/`ELDER_TABS` 사본과 `active` 인덱스를 모두** 맞출 것(화면마다 복사돼 있음).
+역할 공용 화면(`SessionDetail`)은 `src/screens/` 최상위에 두고 라우트만 역할별로 둔다.
 
 ## 디자인 시스템 (`src/tokens.js`)
 - 폰트: `T.font / fontMedium / fontSemiBold / fontBold / fontExtraBold`. **`fontWeight` 금지 → 반드시 `fontFamily`**
 - 타입스케일 `T.fs`(노인 친화: 본문 17px+, 캡션 14px+, **9~13px 본문 금지**), 터치 `T.tap`(56). 신규 화면은 인라인 숫자 대신 이걸 사용
 - 색상: `T.blue/blueDark/blueSoft/blueWash`, `T.ok/caution/danger(+Soft)`, `T.ink/body/muted/line/bg`
 - 위험도 색 기준은 **`src/risk.js`의 `riskTone(score, riskLevel)`로 일원화** (점수<50=danger, SUSPECTED 또는 50~69=caution, 그 외 ok). 화면별 하드코딩 금지
-- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · BarChart · IMUTrace
+- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · BarChart · TrustChart · IMUTrace · ElderTopBlock
+- ⚠️ `Text`/`TextInput`은 **`src/components/` 래퍼로만** import(전역 글씨 배율 적용). react-native에서 직접 가져오지 말 것 — 예외는 `DemoMonitor`(아래 참고)
 - CSS→RN: 그라디언트=expo-linear-gradient, 2열 그리드=`flexDirection:'row'`+`flex:1`(width% 금지), SVG=react-native-svg
 
 ## 커밋 컨벤션 (영문 커밋 금지)
@@ -76,7 +86,8 @@ scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 - **1차**: `motionLevel`(acc std<0.025g, gyro avg<0.04rad/s → `{stationary, accStd, gyroAvg}`) 휴리스틱 게이트 → 움직이면 **huga+93 활동분류**(`gait_stage1_activity.tflite`, 6-class, g단위)로 walking 판정. `useGaitPipeline`: 정지→STATIONARY, 1차가 walking→2차 실행, sitting/standing(conf≥0.8)→STATIONARY, 그 외(running·계단)→OTHER(점수 없음). `analyze`는 시연 표시용으로 `{accStd, gyroAvg, ms1, ms2}`(게이트 실측치·단계별 추론 지연)도 함께 반환한다.
 - **2차**: `gait_model.tflite` = **`best_model_quantized-4`(양자화 normal/abnormal, LOSO 84.31%)**. 단일 윈도우 신뢰 말고 세션 단위 집계 + P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정.
 - **전처리**: 피처 `acc_x,y,z, gyro_x,y,z, acc_x_dyn,y_dyn,z_dyn, acc_norm` (`acc_dyn`=윈도우 평균 제거, `acc_norm`=중력 포함 크기 ≈ ASVM 부분 충족). ⚠️ **GSVM·Butterworth 필터 없음**(v1은 모델과 일치하므로 의도된 상태). 단위 g·rad/s 원단위 그대로. scaler는 `gait_scaler.json`. v2에서 위 '재학습 계약'대로 GSVM·필터 추가.
-- **특징**: 윈도우 cadence(`estimateCadence`, 세션 평균용) + 스트리밍 걸음 기반 `recentCadence`(최근 10초 간격 → 화면 표시용, 안 튐) + `computeGaitMetrics`(회전 제외 직진 걸음의 변동성 CV·좌우대칭성) + 이동거리(걸음×보폭). ⚠️ `CarePatientDetail`의 symmetry/variability는 여전히 백엔드 todayMetrics 값, `CareAnalysis` 레이더/히트맵은 **더미 데이터**.
+- **특징**: 윈도우 cadence(`estimateCadence`, 세션 평균용) + 스트리밍 걸음 기반 `recentCadence`(최근 10초 간격 → 화면 표시용, 안 튐) + `computeGaitMetrics`(회전 제외 직진 걸음의 변동성 CV·좌우대칭성) + 이동거리(걸음×보폭). 세션 종료 시 백엔드로 업로드되어 리포트·보호자 화면에 반영된다(아래 세션 분석 계약 참고).
+- **지표 표기 통일**: 좌우 대칭·변동성은 앱 전체에서 라벨 `좌우 대칭`/`변동성`, 단위 `%`. `computeGaitMetrics`는 8보(직진) 미만이면 `null`을 반환하므로 짧은 측정은 `--`로 표시된다.
 
 ### 시연 모드 (`src/components/DemoMonitor.jsx`)
 측정 화면 우상단 차트 버튼 → 화면 녹화 전용 고밀도 진단 패널. **어르신 화면이 아니므로 의도적으로 T.fs 타입스케일과 전역 글씨 배율을 따르지 않는다**(react-native `Text` 직접 사용). 스크롤 없이 한 화면 고정 — 점수 추이 카드가 `flex:1`로 남는 높이를 흡수한다.
@@ -106,32 +117,25 @@ scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 - **사용자 `/api/users`**: GET/PUT /me · POST/DELETE /device-token `{fcmToken}` · DELETE /me(탈퇴)
 - **신체정보 `/api/wards`**(WARD): GET·PUT /me/physical-info `{height,weight,birthDate,gender}`
 - **가족연결 `/api/ward-link`**: POST /code(WARD `{guardianPhone}`→코드) · POST /(GUARDIAN `{code}`) · DELETE /{wardId}(GUARDIAN) · GET /wards(GUARDIAN) · GET /guardians(WARD) · GET /{wardId}/alerts(GUARDIAN)
-- **세션 `/api/gait/sessions`**(WARD): POST /start · GET /active(없으면 404) · POST /{id}/data `{data:[{minuteAt,avgScore,minScore,maxScore,dangerCount}]}` · POST /{id}/stop · POST /{id}/analysis `{riskLevel,avg/min/maxScore,dangerCount,...}`(dangerCount>0→보호자 FCM)
+- **세션 `/api/gait/sessions`**(WARD): POST /start · GET /active(없으면 404) · POST /{id}/data `{data:[{minuteAt,avgScore,minScore,maxScore,dangerCount}]}` · POST /{id}/stop · POST /{id}/analysis `{riskLevel,avg/min/maxScore,dangerCount,reportSummary,variabilityScore,asymmetryScore}`(dangerCount>0→보호자 FCM)
+  - ⚠️ **`asymmetryScore`는 0~1 원값**이고 백엔드가 `(1-x)*100`으로 `symmetryScore`(0~100)를 만든다. 프론트 `symmetry`(100=대칭)를 보낼 땐 `(100-symmetry)/100`으로 역변환할 것. `variabilityScore`는 CV(%) 무변환 통과. 둘 다 nullable
 - **리포트 `/api/gait/reports`**: GET /{sessionId} · GET /daily(WARD,7일) · GET /ward/{wardId}/daily?days=7|30|90(GUARDIAN) · GET /dashboard(GUARDIAN)
 - **위치 `/api/locations`**: POST /(WARD `{latitude,longitude}`) · GET /stream/{wardId}(GUARDIAN, SSE)
-- 톤 매핑: 백엔드 riskLevel은 2단계(NORMAL/SUSPECTED) → UI 3단계는 `risk.js`에서 산출. CareAnalysis/CareReport/ElderSOS는 전용 API 없음(리포트 재가공)
+- 톤 매핑: 백엔드 riskLevel은 2단계(NORMAL/SUSPECTED) → UI 3단계는 `risk.js`에서 산출
+- ⚠️ **백엔드에 없는 기능은 화면에도 두지 않는다**: 알림 설정·공유 설정·낙상 감지·지오펜스·PDF 리포트·119 연동은 API가 없다. 동작하지 않는 토글·버튼·수치를 "있는 것처럼" 그리지 말 것(과거에 이런 더미 화면들이 있었고 전부 제거함)
 
 ## 로컬 개발 / 빌드
 - 백엔드 기동 + 실기기 테스트: [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md)
 - dev build(EAS 클라우드, on-device 측정 필수): [docs/DEV_BUILD.md](docs/DEV_BUILD.md)
 
-## 현재 상태 / 남은 일
-완료된 토대 위에서 **보고서 목표와의 갭(★)을 메우는 게 다음 코드 작업**이다.
+## 열린 작업
+완료 내역은 git 히스토리에 있다. 여기엔 **아직 안 된 것 + 그것이 코드 판단에 주는 제약**만 적는다.
 
-- [x] 인증·세션·리포트·가족연동·프로필·위치 백엔드 연동 (라이브 검증)
-- [x] on-device 2단계 파이프라인 (isStationary 휴리스틱 + huga+93 1차 게이트 → 양자화 2차, JS 번들 검증)
-- [x] 1차 = **isStationary 휴리스틱 + huga+93 활동분류 게이트**(2026-07-07, 실측 게이팅 14/14, running·계단 미검증)
-- [x] 2차 = **best_model_quantized-4(양자화 84.31%)로 교체**
-- [ ] ★ **(정완) 2차 ASVM/GSVM+Butterworth 재학습** → 도착 시 프론트 전처리 미러링+스왑(v2). 재학습 계약은 on-device 섹션 참고
-- [x] **Peak Detection 보행 지표 산출**(이동거리·변동성·좌우 대칭성) — 측정 화면은 실데이터. 남은 건 `CareAnalysis` 더미 화면 연결
-- [x] **시연 모드 패널**(`DemoMonitor`) — 파이프라인 스트립·점수 산출식·P(이상) 히스테리시스·게이트 실측치·추론 지연(ms)
-- [x] EAS dev build 성공 → 실기기 구동 확인
-- [ ] ★ **`CareLocation` 실제 지도 연동**(2026-08-13) — 기존 SVG 목업 지도를 `@mj-studio/react-native-naver-map`(NaverMapView+Marker)로 교체, SSE 수신 좌표로 카메라 애니메이션. `app.json`의 `client_id` 발급·반영 완료(NCP Application "NEVO", Dynamic Map 월 600만 건 무료). 남은 건 새 EAS dev build(네이티브 모듈 추가라 기존 빌드로는 동작 안 함)
-- [x] **WARD 자동 위치 전송**(2026-08-13, `src/location/track.js`) — 기존엔 `ElderSOS` SOS 버튼 길게 누를 때만 위치 전송돼서 평소엔 보호자 위치 화면이 "위치 대기"만 뜸. 앱 포그라운드 동안 30초 간격 자동 업로드로 확장(백그라운드 전환 시 정지, 복귀 시 재개 — `AppState` 기반). 로그인/앱 시작 시 WARD 역할이면 자동 시작, 로그아웃 시 정지. SOS 버튼 즉시 전송은 그대로 유지
-- [ ] ★ **`CareLocation` 오늘 동선(연두색 폴리라인) — 프론트 준비 완료, 백엔드 대기**(2026-08-13) — `NaverMapPathOverlay`로 렌더링까지 다 붙여놨는데, 백엔드 `locations` 테이블이 `ward_id` 유니크 upsert라 이력이 없어서 현재는 빈 동선. 백엔드팀에 스펙 전달함: ① insert-only `location_history` 테이블 추가(기존 upsert 테이블은 SSE용으로 그대로 둠) ② `GET /api/locations/{wardId}/history?date=YYYY-MM-DD`(GUARDIAN) 신설. 프론트는 `api/location.js`의 `getLocationHistory`로 이미 호출 중 — 엔드포인트 생기는 순간 바로 동작
-- [ ] ★ **실기기에서 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 어느 것이 `pRaw`를 0.5 위로 올리는지 시연 전 확정
-- [ ] 3차 이상유형 분류 모델
-- [x] FCM 푸시 **프론트 연동 완료**(`expo-notifications` + `google-services.json`, 네이티브 FCM 토큰 등록/해제 + 알림 탭 네비게이션). ⚠️ 실발송은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 + EAS dev build 필요
-- [ ] ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** (시연은 정지/평지걸음만 다루므로 전용 UI는 만들지 않음 — 시연 모드에 클래스명만 표시)
-- [ ] SQLite 오프라인 저장 → 동기화
-- [ ] Google Play 출시
+- ★ **(정완) 2차 ASVM/GSVM+Butterworth 재학습** — 도착 전까지 프론트 전처리에 필터·피처를 **먼저 덧붙이지 말 것**(학습 분포 불일치). 도착 시 위 '재학습 계약'대로 미러링 후 스왑(v2)
+- ★ **`CareLocation` 오늘 동선** — 프론트는 `getLocationHistory` + `NaverMapPathOverlay`까지 붙어 있고 **백엔드 대기 중**. `locations`가 `ward_id` 유니크 upsert라 이력이 없어 현재는 빈 동선. 필요 스펙: ① insert-only 이력 테이블(기존 upsert 테이블은 SSE용 유지) ② `GET /api/locations/{wardId}/history?date=YYYY-MM-DD`(GUARDIAN). **엔드포인트 생기면 즉시 동작하므로 프론트 코드를 지우지 말 것**
+- ★ **네이티브 모듈 추가 후 EAS dev build 필요** — 네이버 지도·FCM은 기존 빌드로 동작 안 함
+- ★ **실기기 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 `pRaw`를 0.5 위로 올리는 것 확정
+- ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** — 전용 UI는 만들지 않음(시연 모드에 클래스명만)
+- FCM **실발송**은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 동작(프론트 연동은 완료)
+- `AuthProfile`이 birthYear만 받아 `YYYY-01-01`로 전송 — 미해결
+- 3차 이상유형 분류 모델 · SQLite 오프라인 저장 → 동기화 · Google Play 출시

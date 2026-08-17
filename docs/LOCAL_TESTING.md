@@ -23,7 +23,7 @@ Backend 폴더를 못 찾으면 직접 지정:
 ## 2) 앱이 백엔드를 바라보게 설정
 앱은 백엔드 주소를 `src/store/serverConfig.js`의 `DEFAULT_BACKEND_BASE`(또는 앱 내 **서버설정 화면**)에서 읽는다. 1)에서 출력된 IP로 둘 중 하나를 맞춘다:
 - 코드 기본값: `DEFAULT_BACKEND_BASE = 'http://<이 PC IP>:8080'`
-- 또는 앱 실행 후 서버설정 화면(로그인 전 AuthChoice 톱니 / WARD ElderProfile / GUARDIAN CareNotifSettings)에서 입력·저장
+- 또는 앱 실행 후 서버설정 화면(로그인 전 AuthChoice 톱니 / WARD 내정보 / GUARDIAN 내정보)에서 입력·저장
 
 ## 3) 앱 실행
 on-device 보행 측정(TFLite)은 네이티브 모듈이라 **dev build**가 필요하다. → [DEV_BUILD.md](DEV_BUILD.md) 참고.

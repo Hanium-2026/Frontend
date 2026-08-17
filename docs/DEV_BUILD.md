@@ -12,7 +12,7 @@ npx eas-cli build --profile development --platform android
 ```
 
 `eas.json`의 `development` 프로파일: `developmentClient: true`, `distribution: internal`, APK.
-ㅞ
+
 ## 설치 & 실행
 1. 빌드 완료 후 나온 APK를 폰에 설치 (QR 스캔 또는 링크)
 2. `npx expo start --dev-client`
