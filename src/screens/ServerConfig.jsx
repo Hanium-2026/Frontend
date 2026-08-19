@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Pressable, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import TextInput from '../components/TextInput';
 import Text from '../components/Text';
@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../tokens';
 import Icon from '../icons';
 import { serverConfig, DEFAULT_BACKEND_BASE } from '../store/serverConfig';
+import { startProbe, stopProbe, clearProbe, readProbe } from '../ml/bgProbe';
 
 // 백엔드 서버 주소 설정 화면. 로컬 테스트 시 노트북 LAN IP로 바꾸는 등
 // APK 재빌드 없이 여기서 주소를 바꿔 저장한다.
@@ -14,6 +15,16 @@ export default function ServerConfig() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [backend, setBackend] = useState(serverConfig.getBackendBase());
+
+  // 백그라운드 상시 측정 타당성 검증(개발용). 자세한 배경은 src/ml/bgProbe.js 주석 참고.
+  const [probe, setProbe] = useState(null);
+  const [probeNote, setProbeNote] = useState('');
+  useEffect(() => {
+    const tick = () => { readProbe().then(setProbe).catch(() => {}); };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleSave = async () => {
     await serverConfig.save({ backendBase: backend });
@@ -76,6 +87,64 @@ export default function ServerConfig() {
             <Icon.refresh width={15} height={15} color={T.muted}/>
             <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted }}>기본값으로 초기화</Text>
           </Pressable>
+
+          {/* ── 백그라운드 상시 측정 검증 (개발용) ──────────────────────────
+              foreground service로 프로세스를 살려 두고 2초마다 TFLite 추론을 돌린다.
+              시작 → 홈 버튼 → 2분 뒤 복귀 → «실제»가 «예상»을 따라왔으면 백그라운드 추론이 된다. */}
+          <View style={{ marginTop: 36, paddingTop: 24, borderTopWidth: 1, borderTopColor: T.line }}>
+            <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6 }}>백그라운드 검증</Text>
+            <Text style={{ fontSize: 13, color: T.muted, marginTop: 8, lineHeight: 20 }}>
+              지속 알림을 띄우고 2초마다 추론을 돌립니다. 시작한 뒤 홈 버튼으로 나갔다가
+              2분쯤 뒤 돌아오세요. «실제»가 «예상»을 따라왔으면 백그라운드 추론이 가능합니다.
+            </Text>
+
+            {probe && (
+              <View style={{ marginTop: 16, backgroundColor: T.bg, borderRadius: 12, padding: 14, gap: 6 }}>
+                {(() => {
+                  const expected = Math.floor((Date.now() - probe.startedAt) / 2000);
+                  const alive = probe.lastTickAt != null && Date.now() - probe.lastTickAt < 6000;
+                  const rows = [
+                    ['추론 (실제 / 예상)', `${probe.ticks} / ${expected}`],
+                    ['마지막 추론', probe.lastTickAt ? `${Math.round((Date.now() - probe.lastTickAt) / 1000)}초 전` : '없음'],
+                    ['추론 시간', probe.lastMs != null ? `${probe.lastMs} ms` : '--'],
+                    ['P(이상)', probe.lastP != null ? String(probe.lastP) : '--'],
+                    ['상태', alive ? '돌고 있음' : '멈춤'],
+                  ];
+                  return rows.map(([k, v], i) => (
+                    <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontMedium }}>{k}</Text>
+                      <Text style={{ fontSize: 13, color: k === '상태' && !alive ? T.danger : T.ink, fontFamily: T.fontBold }}>{v}</Text>
+                    </View>
+                  ));
+                })()}
+                {!!probe.lastError && (
+                  <Text style={{ fontSize: 12, color: T.danger, fontFamily: T.fontMedium, marginTop: 4 }}>오류: {probe.lastError}</Text>
+                )}
+              </View>
+            )}
+
+            {!!probeNote && (
+              <Text style={{ fontSize: 12.5, color: T.blue, fontFamily: T.fontSemiBold, marginTop: 10, lineHeight: 18 }}>{probeNote}</Text>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <Pressable
+                onPress={async () => { const r = await startProbe(); setProbeNote(r.note); }}
+                style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: '#fff' }}>시작</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => { await stopProbe(); setProbeNote('중지했어요'); }}
+                style={{ flex: 1, height: 46, borderRadius: 12, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.ink }}>중지</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => { await clearProbe(); setProbe(null); setProbeNote('기록을 지웠어요'); }}
+                style={{ width: 64, height: 46, borderRadius: 12, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 14, fontFamily: T.fontBold, color: T.muted }}>초기화</Text>
+              </Pressable>
+            </View>
+          </View>
         </ScrollView>
 
         <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
