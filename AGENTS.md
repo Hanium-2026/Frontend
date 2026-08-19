@@ -46,7 +46,8 @@ src/
   notifications/push.js  # FCM 토큰 등록/해제 + 알림 탭 네비게이션
   screens/            # auth | elder | caregiver + 역할 공용(ServerConfig, SessionDetail)
   components/ tokens.js icons.jsx risk.js
-docs/                 # LOCAL_TESTING.md, DEV_BUILD.md
+docs/                 # SCREENS.md(화면 명세·디자인 브리프) · REDESIGN.md(재설계 판단 근거)
+                      # LOCAL_TESTING.md, DEV_BUILD.md
 scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 ```
 
