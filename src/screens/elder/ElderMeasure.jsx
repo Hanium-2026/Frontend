@@ -23,6 +23,12 @@ import { riskTone } from '../../risk';
 const WINDOW = 128;   // 2.56초 @ 50Hz
 const STRIDE = 64;    // 1.28초마다 분석
 const HZ_MS = 20;     // ~50Hz
+const STRIDE_SEC = (STRIDE * HZ_MS) / 1000;   // 윈도우 1개 = 1.28초
+
+// 세션 판정은 실시간 EWMA 수렴값이 아니라 raw P(이상) '분포'로 낸다(짧게 재도 판단 가능).
+// 보행 개시 전환기(맨 앞 ONSET_DROP 윈도우)는 비정상 스텝이라 제외. median = 노이즈 견고.
+const ONSET_DROP = 2;         // ~2.5초 제외
+const MIN_WALK_WINDOWS = 12;  // 이 미만이면 기록하지 않는다(개시 제외 후 ~10윈도우·~15초)
 
 // 분 버킷 → 백엔드 MinuteData 형식
 const aggregateMinute = (m) => ({
@@ -41,7 +47,7 @@ const stateLabel = (result) => {
   return '대기';
 };
 
-// 파랑 히어로 위에서 잘 보이는 밝은 위험도 톤 (ElderResult와 동일 팔레트)
+// 파랑 히어로 위에서 잘 보이는 밝은 위험도 톤
 const TONE_DOT = { ok: '#86E3C1', caution: '#FFB4A2', danger: '#FCA5A5', idle: 'rgba(255,255,255,0.6)' };
 
 export default function ElderMeasure() {
@@ -228,6 +234,14 @@ export default function ElderMeasure() {
   const avgScoreLive = scoreHist.length ? Math.round(scoreHist.reduce((x, y) => x + y, 0) / scoreHist.length) : null;
   const minScoreLive = scoreHist.length ? Math.min(...scoreHist) : null;
 
+  // 기록 조건(MIN_WALK_WINDOWS)까지 얼마나 남았는지 실시간으로 알린다.
+  // scoreHist는 걷기 윈도우마다 1개씩 쌓여 accRef.current.rawP와 길이가 같다.
+  const walkWindows = scoreHist.length;
+  const guideText = walkWindows === 0 ? '주머니에 넣고 평소처럼 걸어주세요'
+    : walkWindows < MIN_WALK_WINDOWS
+      ? `약 ${Math.ceil((MIN_WALK_WINDOWS - walkWindows) * STRIDE_SEC)}초 더 걸으면 기록돼요`
+      : '충분히 걸으셨어요. 완료를 눌러도 돼요';
+
   const centerText = score == null ? '걸으면 측정이 시작돼요'
     : tone === 'danger' ? '위험 보행 의심'
     : tone === 'caution' ? '이상 보행 의심'
@@ -238,11 +252,6 @@ export default function ElderMeasure() {
     ['걸음 수', String(steps), '걸음'],
     ['이동 거리', `약 ${distanceM}`, 'm'],
   ];
-
-  // 세션 판정은 실시간 EWMA 수렴값이 아니라 raw P(이상) '분포'로 낸다(짧게 재도 판단 가능).
-  // 보행 개시 전환기(맨 앞 ONSET_DROP 윈도우)는 비정상 스텝이라 제외. median = 노이즈 견고.
-  const ONSET_DROP = 2;         // ~2.5초 제외
-  const MIN_WALK_WINDOWS = 12;  // 이 미만이면 저신뢰(개시 제외 후 ~10윈도우·~15초)
 
   const buildSummary = (lowConfidence) => {
     const a = accRef.current;
@@ -277,19 +286,22 @@ export default function ElderMeasure() {
     sessionStore.set(summary);
 
     // 백엔드 마무리: 잔여 분 데이터 → 종료 → 분석 결과. 실패해도 결과 화면은 이동.
-    // 저신뢰(짧은 측정)면 dangerCount 0으로 전송 → 보호자 오알림(FCM) 억제.
     const sid = sessionIdRef.current;
     if (useBackend && sid && summary) {
       (async () => {
         const m = minuteRef.current;
         if (m.scores.length) await uploadData(sid, [aggregateMinute(m)]);
         await stopSession(sid);
+        // 저신뢰(짧은 측정)는 분석을 올리지 않는다. 백엔드는 analysis 요청에서 daily_scores를
+        // 만들고 gait_reports도 여기서 생기므로, 올리면 몇 걸음짜리 점수가 하루 평균에 섞이고
+        // 기록 목록에도 남는다. 올리지 않으면 양쪽 다 깨끗하고 보호자 FCM도 뜨지 않는다.
+        if (summary.lowConfidence) return;
         await uploadAnalysis(sid, {
           riskLevel: summary.riskLevel,
           avgScore: summary.avgScore,
           minScore: summary.minScore,
           maxScore: summary.maxScore,
-          dangerCount: lowConfidence ? 0 : summary.dangerCount,
+          dangerCount: summary.dangerCount,
           reportSummary: null,
           variabilityScore: summary.variability,
           // 백엔드는 asymmetryScore(0~1)를 받아 (1-x)*100으로 symmetryScore를 만든다 → symmetry(100=대칭)를 역변환.
@@ -301,16 +313,18 @@ export default function ElderMeasure() {
     router.push('/(elder)/result');
   };
 
-  // 걷기 윈도우가 너무 적으면(짧은 측정) 저장 전에 확인.
+  // 걷기 구간이 부족하면 기록되지 않는다 — 끝난 뒤가 아니라 여기서 분명히 알린다.
   const finish = () => {
-    const walkWindows = accRef.current.rawP.length;
-    if (walkWindows > 0 && walkWindows < MIN_WALK_WINDOWS) {
+    const done = accRef.current.rawP.length;
+    if (done > 0 && done < MIN_WALK_WINDOWS) {
+      const left = Math.ceil((MIN_WALK_WINDOWS - done) * STRIDE_SEC);
       Alert.alert(
-        '측정 시간이 짧아요',
-        '걸음이 충분히 측정되지 않아 결과가 정확하지 않을 수 있어요.\n그래도 저장할까요?',
+        '아직 기록되지 않아요',
+        `걸음이 부족해서 이번 측정은 기록에 남지 않아요.
+약 ${left}초만 더 걸으면 기록할 수 있어요.`,
         [
           { text: '더 걸을게요', style: 'cancel' },
-          { text: '그냥 저장', onPress: () => doFinish(true) },
+          { text: '기록 없이 종료', onPress: () => doFinish(true) },
         ],
       );
       return;
@@ -376,7 +390,7 @@ export default function ElderMeasure() {
               측정 시간 <Text style={{ fontFamily: T.fontExtraBold, color: '#fff' }}>{mmss}</Text>
             </Text>
             <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', fontFamily: T.font, marginTop: 8, lineHeight: 19 }}>
-              주머니에 넣고 평소처럼 걸어주세요
+              {guideText}
             </Text>
           </View>
         </View>
