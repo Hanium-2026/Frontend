@@ -16,7 +16,6 @@ import { tokenStore } from '../../store/tokenStore';
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
-  { icon: 'walk',    label: '걷기',  path: '/(elder)/measure-intro' },
   { icon: 'history', label: '기록',  path: '/(elder)/history' },
   { icon: 'family',  label: '보호자', path: '/(elder)/caregiver' },
   { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
@@ -128,7 +127,7 @@ export default function ElderProfile() {
         </View>
       </ScrollView>
 
-      <TabBar tabs={ELDER_TABS} active={4}/>
+      <TabBar tabs={ELDER_TABS} active={3}/>
     </View>
   );
 }

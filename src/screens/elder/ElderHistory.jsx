@@ -7,11 +7,12 @@ import Icon from '../../icons';
 import Card from '../../components/Card';
 import SectionLabel from '../../components/SectionLabel';
 import Pill from '../../components/Pill';
-import BarChart from '../../components/BarChart';
+import DailyTrend from '../../components/DailyTrend';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
 import { getDailyReport } from '../../api/reports';
 import { riskTone, RISK_LABEL } from '../../risk';
+import { fillDays } from '../../daily';
 
 // 세션 위험도 톤 → 아이콘 배경/글자 색
 const TONE_BG = { ok: T.blueSoft, caution: T.cautionSoft, danger: T.dangerSoft };
@@ -19,13 +20,11 @@ const TONE_FG = { ok: T.blue, caution: '#8B5A06', danger: '#9B1B1B' };
 
 const ELDER_TABS = [
   { icon: 'home',    label: '홈',    path: '/(elder)/' },
-  { icon: 'walk',    label: '걷기',  path: '/(elder)/measure-intro' },
   { icon: 'history', label: '기록',  path: '/(elder)/history' },
   { icon: 'family',  label: '보호자', path: '/(elder)/caregiver' },
   { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
 ];
 
-const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
 const round = (n) => (n == null ? 0 : Math.round(n));
 
 // "오늘 14:14" / "어제 18:01" / "5/16 17:45"
@@ -53,10 +52,10 @@ export default function ElderHistory() {
 
   const daily = data?.dailyScores ?? [];
   const sessions = data?.sessions ?? [];
-  const trend = daily.map((d) => round(d.avgScore));
-  const dayLabels = daily.map((d) => WEEKDAY[new Date(d.date).getDay()]);
-  const weeklyAvg = trend.length ? (trend.reduce((a, b) => a + b, 0) / trend.length) : null;
-  const delta = trend.length >= 2 ? round(trend[trend.length - 1] - trend[0]) : null;
+  const days = fillDays(daily);
+  const recorded = days.filter((d) => d.row).map((d) => round(d.row.avgScore));
+  const weeklyAvg = recorded.length ? (recorded.reduce((a, b) => a + b, 0) / recorded.length) : null;
+  const delta = recorded.length >= 2 ? round(recorded[recorded.length - 1] - recorded[0]) : null;
 
   // 기간 요약 — 백엔드 dailyScores가 주는 일별 집계를 합산.
   const totalSessions = daily.reduce((a, d) => a + (d.sessionCount ?? 0), 0);
@@ -100,7 +99,7 @@ export default function ElderHistory() {
               <Card pad={16} style={{ borderRadius: 18 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                   <View>
-                    <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontSemiBold, letterSpacing: 0.2 }}>최근 {trend.length}일 평균</Text>
+                    <Text style={{ fontSize: T.fs.caption, color: T.body, fontFamily: T.fontSemiBold, letterSpacing: 0.2 }}>최근 7일 평균</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
                       <Text style={{ fontSize: 32, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6 }}>{weeklyAvg != null ? weeklyAvg.toFixed(1) : '--'}</Text>
                       <Text style={{ fontSize: T.fs.caption, color: T.muted, marginBottom: 5 }}>점</Text>
@@ -110,9 +109,18 @@ export default function ElderHistory() {
                     <Pill tone={delta > 0 ? 'ok' : 'caution'}>{delta > 0 ? '▲' : '▼'} {Math.abs(delta)}</Pill>
                   )}
                 </View>
-                {trend.length > 0 && (
+                {recorded.length > 0 && (
                   <View style={{ marginTop: 10 }}>
-                    <BarChart data={trend} height={92} color={T.blue} max={100} labels={dayLabels}/>
+                    <DailyTrend
+                      data={days.map((d) => ({
+                        label: d.label,
+                        avg: d.row ? round(d.row.avgScore) : null,
+                        min: d.row?.minScore,
+                        max: d.row?.maxScore,
+                      }))}
+                      height={92}
+                      band
+                    />
                   </View>
                 )}
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
@@ -172,7 +180,7 @@ export default function ElderHistory() {
         )}
       </ScrollView>
 
-      <TabBar tabs={ELDER_TABS} active={2}/>
+      <TabBar tabs={ELDER_TABS} active={1}/>
     </View>
   );
 }

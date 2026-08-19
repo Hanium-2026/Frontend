@@ -1,3 +1,4 @@
-import ElderResult from '../../src/screens/elder/ElderResult';
+import SessionDetail from '../../src/screens/SessionDetail';
 import { withSlide } from '../../src/components/ScreenSlide';
-export default withSlide(ElderResult);
+
+export default withSlide(SessionDetail);

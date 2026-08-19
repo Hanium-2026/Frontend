@@ -13,6 +13,12 @@
 - **앱**: NEVO — 스마트폰 IMU 기반 보행 분석으로 퇴행성 뇌질환(파킨슨·뇌졸중) 초기 보행 변화를 일상에서 조기 탐지
 - **플랫폼**: **Android 전용** (iOS / 웹 / Vercel 폐기)
 - **AI 추론**: **on-device 2단계 TFLite** — 1차 동작분류(walk/not-walk) → 2차 정상/이상(TCN). 추론은 기기에서 수행하고, 서버는 **저장·리포트·FCM 알림만** 담당(별도 AI 추론 서버 없음). (예정) 3차 이상유형
+- ★ **측정 방식 = 백그라운드 상시 측정** (목표). 사용자가 버튼을 눌러 30초 재는 앱이 **아니다.**
+  앱이 켜져 있지 않아도 하루 종일 IMU를 돌려 일상 보행을 모으는 것이 목적이고,
+  **1차 게이트가 존재하는 이유가 바로 이것**이다 — 깨어 있는 시간의 대부분은 비보행 구간이라,
+  게이트 없이 2차 TCN을 상시 돌리면 배터리가 남지 않는다. 게이트는 최적화가 아니라 아키텍처의 전제다.
+  ⚠️ **현재 구현은 포그라운드 세션 방식**(`ElderMeasure` 화면을 벗어나면 센서 구독 해제)이다.
+  화면·정보구조는 **상시 측정 전제로 설계**한다(문서를 코드 현실로 후퇴시키지 말 것).
 - **역할**: WARD(노인) / GUARDIAN(보호자) — 백엔드 JWT 역할과 1:1
 - **배포**: Google Play (dev build로 개발/테스트 중)
 
@@ -44,16 +50,23 @@ docs/                 # LOCAL_TESTING.md, DEV_BUILD.md
 scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 ```
 
-**탭 구성** — WARD: 홈·걷기·기록·보호자·내정보 / GUARDIAN: 대시보드·알림·위치·내정보.
+**탭 구성** — WARD: 홈·기록·보호자·내정보(4탭) / GUARDIAN: 대시보드·알림·위치·내정보.
+WARD의 「걷기」 탭은 없앴다 — 상시 측정이 목표라 측정 화면은 어쩌다 가는 곳이고, 홈 카드로만 진입한다.
 `TabBar`는 `router.push`라 탭 대상 화면도 `AppHeader onBack`을 함께 쓴다. 탭 항목을 바꾸면 **각 화면의 `CARE_TABS`/`ELDER_TABS` 사본과 `active` 인덱스를 모두** 맞출 것(화면마다 복사돼 있음).
 역할 공용 화면(`SessionDetail`)은 `src/screens/` 최상위에 두고 라우트만 역할별로 둔다.
+⚠️ `SessionDetail`은 **측정 직후(로컬 `sessionStore`)와 기록 열람(서버 리포트)을 겸한다** — `sessionId` 유무로 갈린다.
+WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모두 이 화면을 가리키므로,
+**어르신 전용 요소(탭바 등)를 무조건 렌더하지 말 것**(보호자에게도 보인다).
 
 ## 디자인 시스템 (`src/tokens.js`)
 - 폰트: `T.font / fontMedium / fontSemiBold / fontBold / fontExtraBold`. **`fontWeight` 금지 → 반드시 `fontFamily`**
 - 타입스케일 `T.fs`(노인 친화: 본문 17px+, 캡션 14px+, **9~13px 본문 금지**), 터치 `T.tap`(56). 신규 화면은 인라인 숫자 대신 이걸 사용
 - 색상: `T.blue/blueDark/blueSoft/blueWash`, `T.ok/caution/danger(+Soft)`, `T.ink/body/muted/line/bg`
 - 위험도 색 기준은 **`src/risk.js`의 `riskTone(score, riskLevel)`로 일원화** (점수<50=danger, SUSPECTED 또는 50~69=caution, 그 외 ok). 화면별 하드코딩 금지
-- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · BarChart · TrustChart · IMUTrace · ElderTopBlock
+- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · DailyTrend · TrustChart · IMUTrace · ElderTopBlock
+- 일별 점수 추세는 **`DailyTrend`(선)** 를 쓴다. 막대(`BarChart`)는 제거됨 — 점수는 합산되는 양이 아니라 0~100 척도 위의 위치이고,
+  막대는 기록 없는 날과 0점을 구분하지 못한다. 근거는 [docs/REDESIGN.md](docs/REDESIGN.md) 「차트」 절
+- ⚠️ `ElderTopBlock`은 `ElderResult` 통합으로 **현재 사용처가 없다**(삭제 보류)
 - ⚠️ `Text`/`TextInput`은 **`src/components/` 래퍼로만** import(전역 글씨 배율 적용). react-native에서 직접 가져오지 말 것 — 예외는 `DemoMonitor`(아래 참고)
 - CSS→RN: 그라디언트=expo-linear-gradient, 2열 그리드=`flexDirection:'row'`+`flex:1`(width% 금지), SVG=react-native-svg
 
@@ -138,4 +151,6 @@ scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 - ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** — 전용 UI는 만들지 않음(시연 모드에 클래스명만)
 - FCM **실발송**은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 동작(프론트 연동은 완료)
 - `AuthProfile`이 birthYear만 받아 `YYYY-01-01`로 전송 — 미해결
-- 3차 이상유형 분류 모델 · SQLite 오프라인 저장 → 동기화 · Google Play 출시
+- ★ **백그라운드 상시 측정** — 위 '측정 방식' 참고. 현재 인프라가 전무하다(`expo-task-manager`·foreground service 없음, 센서 구독이 `ElderMeasure` 화면 생명주기에 묶여 있음). 필요: Android foreground service(지속 알림 필수) · 배터리 최적화 예외 요청 · 백그라운드에서 `react-native-fast-tflite` 추론 가능 여부 검증 · 배터리 소모 측정
+- ★ **오프라인 큐 (SQLite 누적 → 복구 시 동기화)** — **백엔드는 이미 준비됨**: `POST /{id}/data`가 `ON CONFLICT (session_id, minute_at) DO NOTHING`으로 **중복 전송을 자동 무시**하고 `{saved, skipped}`를 돌려준다. 즉 **같은 데이터를 몇 번 보내도 안전**하므로 프론트는 성공 확인 없이 재전송해도 된다. 폰이 꺼져도 `GET /active`로 진행 중 세션을 이어받을 수 있다. ⚠️ **프론트는 큐가 전혀 없고 업로드 실패를 `.catch(() => {})`로 조용히 버린다**(`ElderMeasure` 4곳) — 지하철에서 측정하면 데이터가 영구 소실되는데 사용자는 저장된 줄 안다. 상시 측정이 붙으면 손실 규모가 커진다
+- 3차 이상유형 분류 모델 · Google Play 출시
