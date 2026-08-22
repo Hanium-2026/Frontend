@@ -8,10 +8,10 @@ const KEY = 'nevo.fontScale';
 
 // key/label/scale — 안드로이드 4단계와 동일. 순서대로 설정 화면에 노출.
 export const FONT_SCALE_OPTIONS = [
-  { key: 'small',  label: '작게',      scale: 0.85 },
-  { key: 'normal', label: '기본',      scale: 1.0 },
-  { key: 'large',  label: '크게',      scale: 1.15 },
-  { key: 'xlarge', label: '가장 크게',  scale: 1.3 },
+  { key: 'small',  label: '작게', scale: 0.85 },
+  { key: 'normal', label: '보통', scale: 1.0 },
+  { key: 'large',  label: '크게', scale: 1.15 },
+  { key: 'xlarge', label: '아주', scale: 1.3 },
 ];
 const DEFAULT_KEY = 'normal';
 const scaleOf = (key) => FONT_SCALE_OPTIONS.find((o) => o.key === key)?.scale ?? 1;

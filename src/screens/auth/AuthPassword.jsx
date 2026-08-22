@@ -10,28 +10,42 @@ import { authStore } from '../../store/authStore';
 import { signUp } from '../../api/auth';
 import { ApiError } from '../../api/client';
 
-function StepBar({ step, total = 6 }) {
+function ProgressBar({ ratio }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i < step ? T.blue : T.line }}/>
-      ))}
+    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.line }}>
+      <View style={{ width: `${ratio * 100}%`, height: 6, borderRadius: 3, backgroundColor: T.ink }}/>
+    </View>
+  );
+}
+
+function CheckRow({ ok, label }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.sm }}>
+      <View style={{
+        width: 20, height: 20, borderRadius: 4, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: ok ? T.okSoft : T.line,
+      }}>
+        {ok && <Icon.check width={13} height={13} color={T.ok}/>}
+      </View>
+      <Text style={{ fontSize: T.fs.body, color: ok ? T.ok : T.muted }}>{label}</Text>
     </View>
   );
 }
 
 // 백엔드 규칙: 8자 이상 + 영문 + 숫자 + 특수문자(@$!%*#?&)
+const HAS_LEN = (pw) => pw.length >= 8;
+const HAS_ALNUM = (pw) => /[A-Za-z]/.test(pw) && /\d/.test(pw);
+const HAS_SPECIAL = (pw) => /[@$!%*#?&]/.test(pw);
 const PW_RE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 
-const ALL_CONSENTS = ['TERMS', 'PRIVACY', 'SMS', 'MEDICAL'].map(
-  (consentType) => ({ consentType, agreed: true })
-);
+const ALL_CONSENTS = ['TERMS', 'PRIVACY', 'SMS', 'MEDICAL'].map((consentType) => ({ consentType, agreed: true }));
 
 export default function AuthPassword() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
+  const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const valid = PW_RE.test(pw);
@@ -49,7 +63,6 @@ export default function AuthPassword() {
       name,
       role: isWard ? 'WARD' : 'GUARDIAN',
       consents: ALL_CONSENTS,
-      // WARD(노약자)는 키·몸무게·생년월일·성별이 모두 필수 (백엔드 검증)
       ...(isWard ? {
         gender: gender === 'male' ? 'MALE' : 'FEMALE',
         birthDate: `${birthYear}-01-01`,
@@ -72,56 +85,66 @@ export default function AuthPassword() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={{ flex: 1, backgroundColor: '#fff' }}>
-        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: T.bg }}>
+        <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
+          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
             <Icon.arrowLeft width={18} height={18} color={T.ink}/>
           </Pressable>
-          <StepBar step={4}/>
+          <ProgressBar ratio={4 / 5}/>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 24 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>비밀번호를{'\n'}설정해주세요</Text>
-          <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>다음 로그인부터 이 비밀번호를 사용해요</Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: T.sp.lg, paddingTop: T.sp.xl }} keyboardShouldPersistTaps="handled">
+          <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35 }}>비밀번호를{'\n'}정해주세요</Text>
 
-          <View style={{ marginTop: 32 }}>
-            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>비밀번호</Text>
+          <View style={{
+            height: 60, borderRadius: T.radius.md, borderWidth: 2, borderColor: T.blue,
+            backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.xxl,
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          }}>
             <TextInput
-              style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: pw ? (valid ? T.blue : '#FF453A') : T.line, fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}
               value={pw}
               onChangeText={setPw}
-              placeholder="영문·숫자·특수문자 8자 이상"
+              placeholder="비밀번호"
               placeholderTextColor={T.muted}
-              secureTextEntry
+              secureTextEntry={!visible}
               autoCapitalize="none"
+              style={{ flex: 1, fontSize: T.fs.h, color: T.ink, letterSpacing: visible ? 0 : 2 }}
             />
-            {pw.length > 0 && !valid && (
-              <Text style={{ fontSize: 12, color: '#FF453A', marginTop: 6 }}>영문·숫자·특수문자(@$!%*#?&)를 포함해 8자 이상이어야 해요</Text>
-            )}
+            <Pressable onPress={() => setVisible((v) => !v)} hitSlop={8}>
+              <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.body }}>{visible ? '숨기기' : '보기'}</Text>
+            </Pressable>
           </View>
 
-          <View style={{ marginTop: 22 }}>
-            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>비밀번호 확인</Text>
+          <View style={{
+            height: 60, borderRadius: T.radius.md, borderWidth: 1,
+            borderColor: pw2 ? (match ? T.blue : T.danger) : T.line,
+            backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.md,
+            justifyContent: 'center',
+          }}>
             <TextInput
-              style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: pw2 ? (match ? T.blue : '#FF453A') : T.line, fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}
               value={pw2}
               onChangeText={setPw2}
-              placeholder="한 번 더 입력하세요"
+              placeholder="비밀번호 확인"
               placeholderTextColor={T.muted}
-              secureTextEntry
+              secureTextEntry={!visible}
               autoCapitalize="none"
+              style={{ fontSize: T.fs.h, color: T.ink, letterSpacing: visible ? 0 : 2 }}
             />
-            {pw2.length > 0 && !match && (
-              <Text style={{ fontSize: 12, color: '#FF453A', marginTop: 6 }}>비밀번호가 일치하지 않아요</Text>
-            )}
+          </View>
+          {pw2.length > 0 && !match && (
+            <Text style={{ fontSize: T.fs.caption, color: T.danger, marginTop: T.sp.sm }}>비밀번호가 일치하지 않아요</Text>
+          )}
+
+          <View style={{ marginTop: T.sp.xl, gap: T.sp.sm }}>
+            <CheckRow ok={HAS_LEN(pw)} label="8자 이상"/>
+            <CheckRow ok={HAS_ALNUM(pw)} label="영문과 숫자 포함"/>
+            <CheckRow ok={HAS_SPECIAL(pw)} label="특수문자 포함 (@$!%*#?&)"/>
           </View>
         </ScrollView>
 
-        <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
-          <Pressable onPress={handleSubmit} disabled={!canSubmit} style={{ height: 58, borderRadius: 14, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
-            {busy
-              ? <ActivityIndicator color="#fff"/>
-              : <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: canSubmit ? '#fff' : T.muted }}>가입 완료</Text>}
+        <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
+          <Pressable onPress={handleSubmit} disabled={!canSubmit} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
+            {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: canSubmit ? '#fff' : T.muted }}>가입 완료</Text>}
           </Pressable>
         </View>
       </View>

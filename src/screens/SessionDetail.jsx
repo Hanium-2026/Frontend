@@ -7,8 +7,7 @@ import Icon from '../icons';
 import AppHeader from '../components/AppHeader';
 import Card from '../components/Card';
 import Pill from '../components/Pill';
-import SectionLabel from '../components/SectionLabel';
-import TabBar from '../components/TabBar';
+import RangeBar from '../components/RangeBar';
 import { getSessionReport } from '../api/reports';
 import { sessionStore } from '../store/sessionStore';
 import { riskTone, RISK_LABEL } from '../risk';
@@ -17,12 +16,7 @@ import { riskTone, RISK_LABEL } from '../risk';
 // sessionId 유무로 갈라 한 모양으로 정규화해 쓴다.
 //  · sessionId 없음 → 방금 측정한 sessionStore (WARD 측정 직후)
 //  · sessionId 있음 → 서버 리포트 (WARD 기록 · GUARDIAN 알림에서 진입)
-const ELDER_TABS = [
-  { icon: 'home',    label: '홈',    path: '/(elder)/' },
-  { icon: 'history', label: '기록',  path: '/(elder)/history' },
-  { icon: 'family',  label: '보호자', path: '/(elder)/caregiver' },
-  { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
-];
+// ⚠️ 확정 디자인은 이 화면에 탭바를 두지 않는다(보호자도 보는 공용 화면).
 
 const fromLocal = (s) => s && ({
   at: s.at,
@@ -82,13 +76,11 @@ export default function SessionDetail() {
         : '이번 측정의 보행이 안정적으로 기록됐어요.'
   ));
 
-  // 평균 점수는 위에 크게 나오므로 타일에 다시 넣지 않는다.
-  const metrics = !data ? [] : [
-    ['점수 범위', data.minScore == null || data.maxScore == null
-      ? '--' : `${Math.round(data.minScore)}~${Math.round(data.maxScore)}`, ''],
+  // 함께 관찰된 보행 특성 — 점수의 근거가 아니라 참고 지표다.
+  const traits = !data ? [] : [
     ['좌우 대칭', round(data.symmetry), data.symmetry == null ? '' : '%'],
-    ['변동성', round(data.variability), data.variability == null ? '' : '%'],
-    ['위험 횟수', String(data.dangerCount ?? 0), '회'],
+    ['걸음 변동성', round(data.variability), data.variability == null ? '' : '%'],
+    ['위험 신호', String(data.dangerCount ?? 0), '회'],
   ];
 
   const onShare = () => {
@@ -102,22 +94,9 @@ export default function SessionDetail() {
     }).catch(() => {});
   };
 
-  const shareBtn = data ? (
-    <Pressable
-      onPress={onShare}
-      hitSlop={10}
-      style={{
-        width: 36, height: 36, borderRadius: 18, marginTop: 2,
-        backgroundColor: T.surface, borderWidth: 1, borderColor: T.line,
-        alignItems: 'center', justifyContent: 'center',
-      }}>
-      <Icon.share width={18} height={18} color={T.ink}/>
-    </Pressable>
-  ) : null;
-
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader title="측정 결과" sub={fmtWhen(data?.at)} onBack right={shareBtn}/>
+      <AppHeader title="측정 결과" onBack/>
 
       {loading ? (
         <View style={{ paddingTop: 80, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>
@@ -132,84 +111,86 @@ export default function SessionDetail() {
           </Text>
         </View>
       ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: local ? 110 : T.sp.xxl }}
-          showsVerticalScrollIndicator={false}>
-          {/* 점수 — 색 운반체는 상태 칩 하나. 숫자는 크기로만 존재감을 만든다. */}
-          <View style={{ paddingHorizontal: T.sp.lg }}>
-            <Card pad={T.sp.xl}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: T.fs.caption, color: T.muted, fontFamily: T.fontSemiBold }}>걸음 건강 점수</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: T.sp.xs }}>
-                    <Text style={{
-                      fontSize: T.fs.display, fontFamily: T.fontExtraBold, color: T.ink,
-                      letterSpacing: -1.5, lineHeight: T.fs.display * 1.05,
-                    }}>{round(data.avgScore)}</Text>
-                    <Text style={{ fontSize: T.fs.body, color: T.muted, marginLeft: T.sp.xs, marginBottom: 6 }}>점</Text>
+        <>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: T.sp.xxl }}
+            showsVerticalScrollIndicator={false}>
+            {/* 점수 — 색 운반체는 상태 칩 하나. 숫자는 크기로만 존재감을 만든다. */}
+            <View style={{ paddingHorizontal: T.sp.lg }}>
+              <Card pad={T.sp.xl}>
+                <Text style={{ fontSize: T.fs.caption, color: T.muted, textAlign: 'center' }}>{fmtWhen(data.at)}</Text>
+                <Text style={{
+                  fontSize: T.fs.display, fontFamily: T.fontExtraBold, color: T.ink,
+                  lineHeight: T.fs.display * 1.1, marginTop: T.sp.sm, textAlign: 'center',
+                }}>{round(data.avgScore)}</Text>
+                <Text style={{ fontSize: T.fs.caption, color: T.muted, textAlign: 'center' }}>걸음 건강 점수</Text>
+                <View style={{ alignItems: 'center', marginTop: T.sp.md }}>
+                  <Pill tone={tone} size="lg">{RISK_LABEL[tone]}</Pill>
+                </View>
+
+                <Text style={{
+                  fontSize: T.fs.body, color: T.body, fontFamily: T.font,
+                  lineHeight: 25, marginTop: T.sp.lg,
+                }}>{summaryText}</Text>
+
+                {data.lowConfidence && (
+                  <View style={{
+                    flexDirection: 'row', gap: T.sp.sm, marginTop: T.sp.md,
+                    padding: T.sp.md, borderRadius: T.radius.sm, backgroundColor: T.cautionSoft,
+                  }}>
+                    <Icon.spark width={18} height={18} color={T.caution}/>
+                    <Text style={{ flex: 1, fontSize: T.fs.caption, color: T.caution, fontFamily: T.fontMedium, lineHeight: 20 }}>
+                      걸음이 적어서 이번 측정은 기록에 남지 않았어요. 다음엔 20초 이상 걸어주세요.
+                    </Text>
                   </View>
-                </View>
-                <View style={{ marginTop: T.sp.xs }}>
-                  <Pill tone={tone}>{RISK_LABEL[tone]}</Pill>
-                </View>
-              </View>
+                )}
 
-              <Text style={{
-                fontSize: T.fs.body, color: T.body, fontFamily: T.font,
-                lineHeight: 25, marginTop: T.sp.md,
-              }}>{summaryText}</Text>
-
-              {data.lowConfidence && (
-                <View style={{
-                  flexDirection: 'row', gap: T.sp.sm, marginTop: T.sp.md,
-                  padding: T.sp.md, borderRadius: T.radius.sm, backgroundColor: T.cautionSoft,
-                }}>
-                  <Icon.spark width={18} height={18} color={T.caution}/>
-                  <Text style={{ flex: 1, fontSize: T.fs.caption, color: T.caution, fontFamily: T.fontMedium, lineHeight: 20 }}>
-                    걸음이 적어서 이번 측정은 기록에 남지 않았어요. 다음엔 20초 이상 걸어주세요.
-                  </Text>
-                </View>
-              )}
-            </Card>
-          </View>
-
-          {/* 상세 지표 — 2열 그리드는 flex로(퍼센트 폭 금지) */}
-          <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
-            <SectionLabel>상세 지표</SectionLabel>
-            <View style={{ gap: T.sp.md }}>
-              {[metrics.slice(0, 2), metrics.slice(2, 4)].map((row, i) => (
-                <View key={i} style={{ flexDirection: 'row', gap: T.sp.md }}>
-                  {row.map(([label, value, unit], j) => (
-                    <Card key={j} pad={T.sp.lg} style={{ flex: 1 }}>
-                      <Text style={{ fontSize: T.fs.caption, color: T.muted, fontFamily: T.fontSemiBold }}>{label}</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: T.sp.sm }}>
-                        <Text style={{ fontSize: T.fs.title, fontFamily: T.fontExtraBold, color: T.ink }}>{value}</Text>
-                        {!!unit && (
-                          <Text style={{ fontSize: T.fs.caption, color: T.muted, marginLeft: 2, marginBottom: 3 }}>{unit}</Text>
-                        )}
-                      </View>
-                    </Card>
-                  ))}
-                </View>
-              ))}
+                {data.minScore != null && data.maxScore != null && (
+                  <View style={{ marginTop: T.sp.xl }}>
+                    <RangeBar min={data.minScore} max={data.maxScore} value={data.avgScore}/>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: T.sp.sm }}>
+                      <Text style={{ fontSize: T.fs.body, color: T.muted }}>0</Text>
+                      <Text style={{ fontSize: T.fs.body, color: T.body }}>
+                        최저 {Math.round(data.minScore)} · 최고 {Math.round(data.maxScore)}
+                      </Text>
+                      <Text style={{ fontSize: T.fs.body, color: T.muted }}>100</Text>
+                    </View>
+                  </View>
+                )}
+              </Card>
             </View>
 
-            {(data.symmetry != null || data.variability != null) && (
-              <Text style={{
-                fontSize: T.fs.caption, color: T.muted, fontFamily: T.font,
-                marginTop: T.sp.md, lineHeight: 20,
-              }}>
-                좌우 대칭과 변동성은 걸음 신호로 추정한 값이에요.
-                좌우 대칭은 100%에 가까울수록, 변동성은 낮을수록 안정적이에요.
-              </Text>
-            )}
-          </View>
-        </ScrollView>
-      )}
+            {/* 함께 관찰된 보행 특성 — 점수의 근거가 아니라 참고 지표다. */}
+            <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
+              <Card pad={T.sp.xl}>
+                <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>함께 관찰된 보행 특성</Text>
+                {traits.map(([label, value, unit], i) => (
+                  <View key={label} style={{
+                    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
+                    paddingVertical: T.sp.md,
+                    borderBottomWidth: i < traits.length - 1 ? 1 : 0, borderBottomColor: T.line,
+                  }}>
+                    <Text style={{ fontSize: T.fs.body, color: T.body }}>{label}</Text>
+                    <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{value}{unit}</Text>
+                  </View>
+                ))}
+              </Card>
+            </View>
+          </ScrollView>
 
-      {/* 측정 직후에만 탭바를 둔다 — 이 화면은 GUARDIAN도 쓰므로(알림 → 세션) 항상 두면 안 된다. */}
-      {local && <TabBar tabs={ELDER_TABS} active={-1}/>}
+          <View style={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.sm, paddingBottom: T.sp.xl, backgroundColor: T.bg }}>
+            <Pressable
+              onPress={onShare}
+              style={({ pressed }) => ({
+                height: 60, borderRadius: T.radius.md, backgroundColor: pressed ? T.blueDark : T.blue,
+                alignItems: 'center', justifyContent: 'center',
+              })}>
+              <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>결과 공유하기</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
     </View>
   );
 }

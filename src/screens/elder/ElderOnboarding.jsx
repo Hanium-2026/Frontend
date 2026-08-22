@@ -1,81 +1,73 @@
-import React from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import Text from '../../components/Text';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
-import Icon from '../../icons';
+import Card from '../../components/Card';
+
+// 최초 1회 온보딩. 3장 모두 같은 구조(일러스트+제목+설명) — 앱 소개 · 상시 측정 안내 · 기기 내 분석.
+const PAGES = [
+  { title: '걷기만 하면 됩니다', body: '휴대폰을 주머니에 넣고 평소처럼 걸으시면, 걸음의 변화를 앱이 알아서 살펴봅니다.' },
+  { title: '하루 종일 지켜봐요', body: '따로 버튼을 누르지 않아도 괜찮아요. 평소 걸음에서 변화가 생기면 앱이 먼저 알아차려요.' },
+  { title: '분석은 휴대폰 안에서만', body: '걸음 신호는 기기 안에서 분석되고, 서버에는 결과 점수만 저장돼요.' },
+];
 
 export default function ElderOnboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const features = [
-    { i: 'spark',  t: '자동 측정',  s: '평소처럼 걸으면 됩니다' },
-    { i: 'brain',  t: 'AI 분석',    s: '보행 패턴을 정밀 분석해요' },
-    { i: 'family', t: '가족 연결',  s: '보호자와 결과를 공유해요' },
-  ];
+  const { width } = useWindowDimensions();
+  const scrollRef = useRef(null);
+  const [page, setPage] = useState(0);
+
+  const goTo = (i) => {
+    setPage(i);
+    scrollRef.current?.scrollTo({ x: i * width, animated: true });
+  };
+
+  const handleNext = () => {
+    if (page < PAGES.length - 1) goTo(page + 1);
+    else router.push('/(auth)/');
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-        {/* radial-gradient 근사: blueSoft → white 세로 그라디언트 */}
-        <LinearGradient
-          colors={[T.blueSoft, '#ffffff']}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 0.65 }}
-          style={{ paddingTop: insets.top + 76, paddingHorizontal: 32, paddingBottom: 40, alignItems: 'center' }}
-        >
-          <View style={{
-            width: 96, height: 96, borderRadius: 28, backgroundColor: T.blue,
-            alignItems: 'center', justifyContent: 'center',
-            shadowColor: T.blue, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.25, shadowRadius: 32,
-            elevation: 12, marginBottom: 28,
-          }}>
-            <Icon.walk width={56} height={56} color="#fff"/>
+    <View style={{ flex: 1, backgroundColor: T.bg }}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+        style={{ flex: 1 }}>
+        {PAGES.map((p) => (
+          <View key={p.title} style={{ width, justifyContent: 'center', paddingHorizontal: T.sp.lg }}>
+            <Card pad={T.sp.xl}>
+              <View style={{ height: 200, borderRadius: T.radius.md, backgroundColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: T.fs.caption, color: T.muted }}>일러스트 자리</Text>
+              </View>
+              <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35, marginTop: T.sp.xl }}>
+                {p.title}
+              </Text>
+              <Text style={{ fontSize: T.fs.body, color: T.body, marginTop: T.sp.sm, lineHeight: T.fs.body * 1.6 }}>
+                {p.body}
+              </Text>
+            </Card>
           </View>
-          <Text style={{ fontSize: 36, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: 4, lineHeight: 40 }}>NEVO</Text>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.font, color: T.body, marginTop: 10, textAlign: 'center', lineHeight: 25 }}>
-            {'매일 걷는 것만으로\n뇌 건강을 살펴드려요'}
-          </Text>
-
-          <View style={{ marginTop: 48, width: '100%', gap: 14 }}>
-            {features.map((f, k) => {
-              const I = Icon[f.i];
-              return (
-                <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <View style={{
-                    width: 44, height: 44, borderRadius: 14, backgroundColor: '#fff',
-                    alignItems: 'center', justifyContent: 'center',
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
-                  }}>
-                    <I width={22} height={22} color={T.blue}/>
-                  </View>
-                  <View>
-                    <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>{f.t}</Text>
-                    <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, marginTop: 2 }}>{f.s}</Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </LinearGradient>
-
-        <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: Math.max(insets.bottom, 24), backgroundColor: '#fff' }}>
-          <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, textAlign: 'center', marginBottom: 12 }}>어떻게 사용하시나요?</Text>
-          <Pressable
-            onPress={() => router.push('/(auth)/')}
-            style={{ width: '100%', height: 56, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-            <Icon.user width={20} height={20} color="#fff"/>
-            <Text style={{ fontSize: 18, fontFamily: T.fontBold, color: '#fff' }}>본인이 사용해요</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/(auth)/')}
-            style={{ width: '100%', height: 56, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1.5, borderColor: T.blueSoft }}>
-            <Icon.family width={20} height={20} color={T.blue}/>
-            <Text style={{ fontSize: 18, fontFamily: T.fontBold, color: T.blue }}>가족을 돌봐요</Text>
-          </Pressable>
-        </View>
+        ))}
       </ScrollView>
+
+      <View style={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.md, paddingBottom: Math.max(insets.bottom, T.sp.xl), gap: T.sp.lg }}>
+        <View style={{ flexDirection: 'row', gap: T.sp.sm, justifyContent: 'center' }}>
+          {PAGES.map((p, i) => (
+            <View key={p.title} style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: i === page ? T.ink : T.line }}/>
+          ))}
+        </View>
+        <Pressable onPress={handleNext} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>
+            {page < PAGES.length - 1 ? '다음' : '시작하기'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }

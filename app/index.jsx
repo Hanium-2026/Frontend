@@ -1,9 +1,25 @@
 import { Redirect } from 'expo-router';
 import { Platform, View, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
 import Text from '../src/components/Text';
+import Logo from '../src/components/Logo';
 import { useRouter } from 'expo-router';
 import T from '../src/tokens';
 import { tokenStore } from '../src/store/tokenStore';
+
+// 앱을 열었을 때 첫 화면 — 확정 디자인 3e(스플래시). 네이티브 스플래시가 사라진 직후
+// 아주 짧게 같은 장면을 이어 보여주고 실제 첫 화면으로 넘어간다.
+const SPLASH_MS = 900;
+
+function Splash() {
+  return (
+    <View style={{ flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <Logo width={76}/>
+      <Text style={{ fontSize: T.fs.display, fontFamily: T.fontExtraBold, color: T.ink, lineHeight: T.fs.display, letterSpacing: -0.9 }}>nevo</Text>
+      <Text style={{ fontSize: T.fs.body, color: T.muted }}>걸음이 알려주는 건강 신호</Text>
+    </View>
+  );
+}
 
 function WebLanding() {
   const router = useRouter();
@@ -39,7 +55,14 @@ function WebLanding() {
 }
 
 export default function Index() {
+  const [showSplash, setShowSplash] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setShowSplash(false), SPLASH_MS);
+    return () => clearTimeout(t);
+  }, []);
+
   if (Platform.OS === 'web') return <WebLanding />;
+  if (showSplash) return <Splash/>;
   if (tokenStore.isLoggedIn()) {
     return <Redirect href={tokenStore.getRole() === 'GUARDIAN' ? '/(caregiver)/' : '/(elder)/'}/>;
   }

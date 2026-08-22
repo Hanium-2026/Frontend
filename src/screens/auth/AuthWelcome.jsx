@@ -1,10 +1,11 @@
-﻿import React from 'react';
+import React from 'react';
 import { View, Pressable } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
-import Icon from '../../icons';
+import Card from '../../components/Card';
+import Pill from '../../components/Pill';
 import { authStore } from '../../store/authStore';
 
 export default function AuthWelcome() {
@@ -12,38 +13,34 @@ export default function AuthWelcome() {
   const insets = useSafeAreaInsets();
   const { name, role } = authStore.get();
   const displayName = name || '사용자';
-  const dest = role === 'caregiver' ? '/(caregiver)/' : '/(elder)/';
+  const isWard = role !== 'caregiver';
+  const dest = isWard ? '/(elder)/' : '/(caregiver)/';
+
   return (
-    <View style={{ flex: 1, backgroundColor: T.blue }}>
-      <View style={{ flex: 1, paddingTop: insets.top + 136, paddingHorizontal: 32, alignItems: 'center' }}>
-        <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.2, shadowRadius: 60, elevation: 12 }}>
-          <Icon.check width={56} height={56} color={T.blue}/>
-        </View>
+    <View style={{ flex: 1, backgroundColor: T.bg }}>
+      <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: T.sp.lg, gap: T.sp.lg }}>
+        <Card pad={T.sp.xl}>
+          <Pill tone="ok" size="lg">준비 완료</Pill>
+          <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35, marginTop: T.sp.lg }}>
+            {displayName}님,{'\n'}이제 걸으시면 됩니다
+          </Text>
+        </Card>
 
-        <Text style={{ fontSize: 32, fontFamily: T.fontExtraBold, color: '#fff', marginTop: 28, letterSpacing: -1, lineHeight: 40, textAlign: 'center' }}>
-          {displayName}님,{'\n'}이제 시작해요!
-        </Text>
-        <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', marginTop: 14, lineHeight: 24, textAlign: 'center' }}>
-          평소처럼 걸으시면 자동으로{'\n'}분석해드릴게요
-        </Text>
-
-        <View style={{ marginTop: 40, gap: 10, width: '100%', maxWidth: 320 }}>
-          {[['shield','계정 생성 완료'],['family','딸 이민지님과 연결됨'],['walk','자동 측정 시작']].map(([i, t], k) => {
-            const I = Icon[i];
-            return (
-              <View key={k} style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-                <I width={20} height={20} color="#fff"/>
-                <Text style={{ flex: 1, fontSize: 14, fontFamily: T.fontSemiBold, color: '#fff' }}>{t}</Text>
-                <Icon.check width={16} height={16} color="#86E3C1"/>
-              </View>
-            );
-          })}
-        </View>
+        {isWard && (
+          <Card pad={T.sp.xl}>
+            <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>가족도 함께 보게 할까요</Text>
+            <Pressable
+              onPress={() => router.push('/(elder)/caregiver')}
+              style={{ height: 56, borderRadius: T.radius.md, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center', marginTop: T.sp.lg }}>
+              <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>보호자와 연결하기</Text>
+            </Pressable>
+          </Card>
+        )}
       </View>
 
-      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 24) }}>
-        <Pressable onPress={() => router.replace(dest)} style={{ height: 58, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: T.blue }}>NEVO 시작하기</Text>
+      <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
+        <Pressable onPress={() => router.replace(dest)} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>홈으로 가기</Text>
         </Pressable>
       </View>
     </View>

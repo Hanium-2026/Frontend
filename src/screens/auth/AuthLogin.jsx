@@ -14,6 +14,7 @@ export default function AuthLogin() {
   const insets = useSafeAreaInsets();
   const [phone, setPhone] = useState('');
   const [pw, setPw] = useState('');
+  const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const canSubmit = phone.length >= 10 && pw.length > 0 && !busy;
@@ -34,55 +35,58 @@ export default function AuthLogin() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={{ flex: 1, backgroundColor: '#fff' }}>
-        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: T.bg }}>
+        <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
+          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
             <Icon.arrowLeft width={18} height={18} color={T.ink}/>
           </Pressable>
-          <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontBold, letterSpacing: 0.6 }}>로그인</Text>
+          <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink }}>로그인</Text>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 24 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>다시 오셨네요!{'\n'}로그인해주세요</Text>
-
-          <View style={{ marginTop: 32 }}>
-            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>전화번호</Text>
-            <TextInput
-              style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: phone ? T.blue : T.line, fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}
-              value={phone}
-              onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))}
-              placeholder="01012345678"
-              placeholderTextColor={T.muted}
-              keyboardType="number-pad"
-              maxLength={11}
-            />
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: T.sp.lg, paddingTop: T.sp.xl, gap: T.sp.xl }} keyboardShouldPersistTaps="handled">
+          <View>
+            <Text style={{ fontSize: T.fs.caption, color: T.muted }}>전화번호</Text>
+            <View style={{ height: 60, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.line, backgroundColor: T.surface, paddingHorizontal: T.sp.lg, justifyContent: 'center', marginTop: T.sp.sm }}>
+              <TextInput
+                value={phone}
+                onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))}
+                placeholder="01012345678"
+                placeholderTextColor={T.muted}
+                keyboardType="number-pad"
+                maxLength={11}
+                style={{ fontSize: T.fs.h, color: T.ink }}
+              />
+            </View>
           </View>
 
-          <View style={{ marginTop: 22 }}>
-            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>비밀번호</Text>
-            <TextInput
-              style={{ backgroundColor: T.bg, borderRadius: 12, padding: 16, borderWidth: 1.5, borderColor: pw ? T.blue : T.line, fontSize: 17, fontFamily: T.fontSemiBold, color: T.ink }}
-              value={pw}
-              onChangeText={setPw}
-              placeholder="비밀번호"
-              placeholderTextColor={T.muted}
-              secureTextEntry
-              autoCapitalize="none"
-              onSubmitEditing={handleLogin}
-              returnKeyType="go"
-            />
+          <View>
+            <Text style={{ fontSize: T.fs.caption, color: T.muted }}>비밀번호</Text>
+            <View style={{ height: 60, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.line, backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <TextInput
+                value={pw}
+                onChangeText={setPw}
+                placeholder="비밀번호"
+                placeholderTextColor={T.muted}
+                secureTextEntry={!visible}
+                autoCapitalize="none"
+                onSubmitEditing={handleLogin}
+                returnKeyType="go"
+                style={{ flex: 1, fontSize: T.fs.h, color: T.ink }}
+              />
+              <Pressable onPress={() => setVisible((v) => !v)} hitSlop={8}>
+                <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.body }}>{visible ? '숨기기' : '보기'}</Text>
+              </Pressable>
+            </View>
           </View>
 
-          <Pressable onPress={() => router.push('/(auth)/password-reset')} style={{ marginTop: 16, alignItems: 'flex-end', paddingVertical: 8 }}>
-            <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.blue }}>비밀번호를 잊으셨나요?</Text>
+          <Pressable onPress={() => router.push('/(auth)/password-reset')}>
+            <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.body, textDecorationLine: 'underline' }}>비밀번호를 잊으셨나요?</Text>
           </Pressable>
         </ScrollView>
 
-        <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
-          <Pressable onPress={handleLogin} disabled={!canSubmit} style={{ height: 58, borderRadius: 14, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
-            {busy
-              ? <ActivityIndicator color="#fff"/>
-              : <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: canSubmit ? '#fff' : T.muted }}>로그인</Text>}
+        <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
+          <Pressable onPress={handleLogin} disabled={!canSubmit} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
+            {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: canSubmit ? '#fff' : T.muted }}>로그인</Text>}
           </Pressable>
         </View>
       </View>

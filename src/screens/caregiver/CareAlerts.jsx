@@ -10,20 +10,18 @@ import TabBar from '../../components/TabBar';
 import { getMyWards, getWardAlerts } from '../../api/links';
 
 const CARE_TABS = [
-  { icon: 'home',     label: '대시보드', path: '/(caregiver)/' },
-  { icon: 'bell',     label: '알림',    path: '/(caregiver)/alerts' },
-  { icon: 'pin',      label: '위치',    path: '/(caregiver)/location' },
-  { icon: 'user',     label: '내정보',  path: '/(caregiver)/profile' },
+  { label: '대시보드', path: '/(caregiver)/' },
+  { label: '알림', path: '/(caregiver)/alerts' },
+  { label: '위치', path: '/(caregiver)/location' },
+  { label: '내정보', path: '/(caregiver)/profile' },
 ];
 
 // 현재 백엔드 AlertType은 STROKE_DANGER 한 종류.
-const TYPE_TITLE = { STROKE_DANGER: '뇌졸중 의심 신호' };
-
 function fmtAgo(iso) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
   if (diff < 1) return '방금 전';
   if (diff < 60) return `${diff}분 전`;
-  if (diff < 1440) return `${Math.floor(diff / 60)}시간 전`;
+  if (diff < 1440) return `오늘 ${new Date(iso).getHours()}:${String(new Date(iso).getMinutes()).padStart(2, '0')}`;
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
@@ -56,36 +54,31 @@ export default function CareAlerts() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader title="알림 · AI 리포트" sub={loading ? '불러오는 중' : `총 ${alerts.length}건`}/>
+      <AppHeader title="알림"/>
 
       {loading ? (
         <View style={{ paddingTop: 80, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>
       ) : alerts.length === 0 ? (
         <View style={{ paddingTop: 80, paddingHorizontal: 32, alignItems: 'center' }}>
           <Icon.bell width={40} height={40} color={T.line}/>
-          <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontSemiBold, marginTop: 12, textAlign: 'center' }}>받은 알림이 없어요.{'\n'}이상 보행이 감지되면 여기에 표시됩니다.</Text>
+          <Text style={{ fontSize: T.fs.body, color: T.body, fontFamily: T.fontSemiBold, marginTop: T.sp.md, textAlign: 'center' }}>아직 알림이 없어요</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100, gap: 10 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.md, paddingBottom: 100, gap: T.sp.lg }} showsVerticalScrollIndicator={false}>
           {alerts.map((a) => (
             <Pressable
               key={a.alertId}
               disabled={a.sessionId == null}
               onPress={() => router.push({ pathname: '/(caregiver)/session-detail', params: { sessionId: String(a.sessionId) } })}>
-              <Card pad={14} style={{ borderRadius: 16, borderLeftWidth: 3, borderLeftColor: T.danger }}>
-                <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#FCE0E0', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon.brain width={20} height={20} color={T.danger}/>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <Text style={{ fontSize: 13.5, fontFamily: T.fontBold, color: T.ink, flex: 1 }}>{TYPE_TITLE[a.type] || a.type}</Text>
-                      <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontMedium }}>{fmtAgo(a.createdAt)}</Text>
-                    </View>
-                    <Text style={{ fontSize: 12, color: T.muted, marginTop: 2, fontFamily: T.fontMedium }}>{a.who} · {a.message}</Text>
-                  </View>
-                  {a.sessionId != null && <Icon.chevron width={16} height={16} color={T.muted} style={{ alignSelf: 'center' }}/>}
+              <Card pad={T.sp.xl} style={{ borderLeftWidth: 3, borderLeftColor: T.danger }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{a.who}님</Text>
+                  <Text style={{ fontSize: T.fs.caption, color: T.muted }}>{fmtAgo(a.createdAt)}</Text>
                 </View>
+                <Text style={{ fontSize: T.fs.body, color: T.body, marginTop: T.sp.sm, lineHeight: T.fs.body * 1.6 }}>{a.message}</Text>
+                {a.sessionId != null && (
+                  <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink, marginTop: T.sp.lg }}>측정 결과 보기 →</Text>
+                )}
               </Card>
             </Pressable>
           ))}

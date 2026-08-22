@@ -9,12 +9,10 @@ import { authStore } from '../../store/authStore';
 import { sendSms, verifySms } from '../../api/auth';
 import { ApiError } from '../../api/client';
 
-function StepBar({ step, total = 6 }) {
+function ProgressBar({ ratio }) {
   return (
-    <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i < step ? T.blue : T.line }}/>
-      ))}
+    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.line }}>
+      <View style={{ width: `${ratio * 100}%`, height: 6, borderRadius: 3, backgroundColor: T.ink }}/>
     </View>
   );
 }
@@ -67,17 +65,11 @@ export default function AuthOTP() {
     clearInterval(timerRef.current);
     setSecs(180);
     timerRef.current = setInterval(() => {
-      setSecs(s => {
-        if (s <= 1) { clearInterval(timerRef.current); return 0; }
-        return s - 1;
-      });
+      setSecs((s) => { if (s <= 1) { clearInterval(timerRef.current); return 0; } return s - 1; });
     }, 1000);
   };
 
-  useEffect(() => {
-    startTimer();
-    return () => clearInterval(timerRef.current);
-  }, []);
+  useEffect(() => { startTimer(); return () => clearInterval(timerRef.current); }, []);
 
   useEffect(() => {
     if (otp.length === 6 && !busy) {
@@ -87,83 +79,65 @@ export default function AuthOTP() {
   }, [otp]);
 
   const handleKey = (k) => {
-    if (k === '⌫') {
-      setOtp(o => o.slice(0, -1));
-    } else if (otp.length < 6) {
-      setOtp(o => o + k);
-    }
+    if (k === '⌫') setOtp((o) => o.slice(0, -1));
+    else if (otp.length < 6) setOtp((o) => o + k);
   };
 
   const boxes = Array.from({ length: 6 }, (_, i) => otp[i] || '');
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: T.bg }}>
+      <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
+        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
           <Icon.arrowLeft width={18} height={18} color={T.ink}/>
         </Pressable>
-        <StepBar step={2}/>
+        <ProgressBar ratio={2 / 5}/>
       </View>
 
-      <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 24 }}>
-        <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>인증번호를{'\n'}입력해주세요</Text>
-        <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>
-          <Text style={{ fontFamily: T.fontBold, color: T.body }}>{fmtPhone(phone) || '입력하신 번호'}</Text>
-          {' '}으로 6자리 코드를 보냈어요
-        </Text>
+      <View style={{ flex: 1, paddingHorizontal: T.sp.lg, paddingTop: T.sp.xl }}>
+        <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35 }}>문자로 받은{'\n'}숫자 6자리를 넣어주세요</Text>
+        <Text style={{ fontSize: T.fs.body, color: T.body, marginTop: T.sp.sm }}>{fmtPhone(phone) || '입력하신 번호'}로 보냈어요</Text>
 
-        <View style={{ marginTop: 40, flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+        <View style={{ flexDirection: 'row', gap: T.sp.sm, marginTop: T.sp.xxl }}>
           {boxes.map((d, i) => {
             const isCurrent = i === otp.length;
-            const isFilled = i < otp.length;
             return (
               <View key={i} style={{
-                width: 50, height: 60, borderRadius: 12,
-                backgroundColor: isFilled ? T.blueSoft : T.bg,
-                borderWidth: isCurrent ? 2 : 1.5,
-                borderColor: isCurrent ? T.blue : (isFilled ? T.blueChip : T.line),
+                flex: 1, height: 72, borderRadius: T.radius.md,
+                backgroundColor: T.surface,
+                borderWidth: isCurrent ? 2 : 1,
+                borderColor: isCurrent ? T.blue : T.line,
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Text style={{ fontSize: 28, fontFamily: T.fontExtraBold, color: T.ink }}>{d}</Text>
+                <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink }}>{d}</Text>
               </View>
             );
           })}
         </View>
 
-        <Text style={{ marginTop: 28, textAlign: 'center', fontSize: 13, color: T.muted }}>
-          남은 시간{' '}
-          <Text style={{ color: secs > 0 ? T.blue : '#FF453A', fontFamily: T.fontBold }}>
-            {fmtTime(secs)}
-          </Text>
+        <Text style={{ marginTop: T.sp.xl, fontSize: T.fs.body, color: T.body }}>
+          남은 시간 <Text style={{ color: secs > 0 ? T.ink : T.danger, fontFamily: T.fontBold }}>{fmtTime(secs)}</Text>
         </Text>
 
-        <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'center', gap: 14 }}>
-          <Pressable onPress={() => router.back()} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-            <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted }}>번호 변경</Text>
-          </Pressable>
-          <View style={{ width: 1, backgroundColor: T.line }}/>
-          <Pressable onPress={resend} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
-            <Text style={{ fontSize: 13, fontFamily: T.fontBold, color: T.blue }}>다시 받기</Text>
-          </Pressable>
-        </View>
+        <Pressable onPress={resend} style={{ marginTop: T.sp.sm }}>
+          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink, textDecorationLine: 'underline' }}>다시 받기</Text>
+        </Pressable>
 
         <View style={{ flex: 1 }}/>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingTop: 16 }}>
-          {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingTop: T.sp.md }}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((k, i) => (
             <Pressable key={i} onPress={() => k && handleKey(k)} disabled={!k}
-              style={{ width: '33.33%', height: 52, borderRadius: 10, backgroundColor: k ? '#fff' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 22, fontFamily: T.fontSemiBold, color: T.ink }}>{k}</Text>
+              style={{ width: '33.33%', height: 56, borderRadius: T.radius.sm, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: T.fs.title, fontFamily: T.fontSemiBold, color: T.ink }}>{k}</Text>
             </Pressable>
           ))}
         </View>
       </View>
 
-      <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
-        <Pressable onPress={() => verify(otp)} disabled={otp.length !== 6 || busy} style={{ height: 58, borderRadius: 14, backgroundColor: otp.length === 6 ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
-          {busy
-            ? <ActivityIndicator color="#fff"/>
-            : <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: otp.length === 6 ? '#fff' : T.muted }}>확인</Text>}
+      <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
+        <Pressable onPress={() => verify(otp)} disabled={otp.length !== 6 || busy} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: otp.length === 6 ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
+          {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: otp.length === 6 ? '#fff' : T.muted }}>확인</Text>}
         </Pressable>
       </View>
     </View>

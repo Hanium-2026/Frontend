@@ -16,7 +16,7 @@ export default function CareInvite() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const canSubmit = code.trim().length >= 4 && !busy;
+  const canSubmit = code.trim().length === 6 && !busy;
   const donePath = returnTo === 'caregiver' ? '/(caregiver)/' : '/(auth)/welcome';
 
   const handleConnect = async () => {
@@ -35,46 +35,43 @@ export default function CareInvite() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={{ flex: 1, backgroundColor: '#fff' }}>
-        <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: T.bg }}>
+        <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
+          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
             <Icon.arrowLeft width={18} height={18} color={T.ink}/>
           </Pressable>
-          <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: T.blue }}/>
-            ))}
-          </View>
+          <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink }}>어르신 연결</Text>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 24 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>가족과{'\n'}연결해주세요</Text>
-          <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>
-            노약자 앱에서 만든 연동 코드를{'\n'}입력하면 연결됩니다
-          </Text>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: T.sp.lg, paddingTop: T.sp.lg }} keyboardShouldPersistTaps="handled">
+          <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35 }}>6자리 코드를{'\n'}넣어주세요</Text>
+          <Text style={{ fontSize: T.fs.body, color: T.body, marginTop: T.sp.sm }}>어르신 앱의 «보호자» 화면에서 만들 수 있어요.</Text>
 
-          <View style={{ marginTop: 32 }}>
-            <Text style={{ fontSize: 12, color: T.muted, fontFamily: T.fontBold, marginBottom: 8 }}>연동 코드</Text>
+          <View style={{
+            height: 72, borderRadius: T.radius.md, borderWidth: 2, borderColor: T.blue,
+            backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.xxl,
+            justifyContent: 'center',
+          }}>
             <TextInput
-              style={{ backgroundColor: T.bg, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 18, borderWidth: 1.5, borderColor: code ? T.blue : T.line, fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: 6, textAlign: 'center' }}
               value={code}
-              onChangeText={(t) => setCode(t.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
+              onChangeText={(t) => setCode(t.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6))}
               placeholder="------"
               placeholderTextColor={T.line}
               autoCapitalize="characters"
               autoCorrect={false}
-              maxLength={8}
+              maxLength={6}
+              style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, letterSpacing: 6, textAlign: 'center' }}
             />
           </View>
 
-          <Pressable onPress={() => router.replace(donePath)} style={{ marginTop: 18, alignItems: 'center', padding: 8 }}>
-            <Text style={{ fontSize: 13, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>나중에 연결할게요</Text>
+          <Pressable onPress={() => router.replace(donePath)} style={{ marginTop: T.sp.lg, alignItems: 'center', padding: T.sp.sm }}>
+            <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.muted, textDecorationLine: 'underline' }}>나중에 연결할게요</Text>
           </Pressable>
         </ScrollView>
 
-        <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20) }}>
-          <Pressable onPress={handleConnect} disabled={!canSubmit} style={{ height: 58, borderRadius: 14, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
-            {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: canSubmit ? '#fff' : T.muted }}>연결하기</Text>}
+        <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
+          <Pressable onPress={handleConnect} disabled={!canSubmit} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: canSubmit ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
+            {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: canSubmit ? '#fff' : T.muted }}>연결하기</Text>}
           </Pressable>
         </View>
       </View>

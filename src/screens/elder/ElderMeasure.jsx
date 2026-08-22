@@ -1,15 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Pressable, ScrollView, Animated, Easing, useWindowDimensions, Alert } from 'react-native';
+import { View, Pressable, ScrollView, Alert } from 'react-native';
 import Text from '../../components/Text';
-import Svg, { Circle } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Accelerometer, Gyroscope } from 'expo-sensors';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
-import IMUTrace from '../../components/IMUTrace';
+import Pill from '../../components/Pill';
 import SparkLine from '../../components/SparkLine';
 import DemoMonitor from '../../components/DemoMonitor';
 import { useGaitPipeline } from '../../ml/useGaitPipeline';
@@ -39,32 +37,9 @@ const aggregateMinute = (m) => ({
   dangerCount: m.danger,
 });
 
-// 상태 라벨: 정지 / 걷기 / 보행 아님(뛰기·계단 등 2차 미적용) / 대기.
-const stateLabel = (result) => {
-  if (result?.activityState === 'STATIONARY') return '정지';
-  if (result?.activityState === 'WALKING') return '걷기';
-  if (result?.activityState === 'OTHER') return '보행 아님';
-  return '대기';
-};
-
-// 파랑 히어로 위에서 잘 보이는 밝은 위험도 톤
-const TONE_DOT = { ok: '#86E3C1', caution: '#FFB4A2', danger: '#FCA5A5', idle: 'rgba(255,255,255,0.6)' };
-
 export default function ElderMeasure() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-
-  // 파랑 히어로를 홈 화면과 동일한 비율·사이징 패턴으로 맞춘다.
-  // 링을 작게 + 가로 배치(링 왼쪽 / 결과 오른쪽)해 파랑이 화면을 덜 먹게 하고,
-  // 홈과 같은 compact 기준을 써서 모든 폰에서 비율이 일정하도록 한다.
-  const { height: winH } = useWindowDimensions();
-  const compact = winH < 760;
-  const RING = compact ? 108 : 128;      // 측정 링 지름 (홈 96/116보다 살짝 크게 = 측정의 초점)
-  const R = RING / 2 - 10;               // 반지름(획 두께 10 고려, 홈과 동일)
-  const CIRC = 2 * Math.PI * R;
-  const scoreFs = compact ? 40 : 48;     // 큰 점수 글자
-  const heroGap = compact ? 14 : 18;     // 상단 행 ↔ 메인 행 간격 (홈과 동일)
-  const heroPadB = compact ? 18 : 26;    // 히어로 하단 여백 (홈 18/28)
 
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
@@ -96,12 +71,11 @@ export default function ElderMeasure() {
   const [steps, setSteps] = useState(0);         // 연속 검출기 누적 걸음 수
   const [shownScore, setShownScore] = useState(null);   // 화면에 유지되는 마지막 점수(정지 중에도 표시)
   const [shownRisk, setShownRisk] = useState('NORMAL');
-  const [shownP, setShownP] = useState({ raw: null, smooth: null });  // 마지막 P(이상) — 정지 중엔 값이 비지 않고 멈춘다
+  const [shownP, setShownP] = useState({ raw: null, smooth: null });  // 마지막 P(이상) — 시연 모드 진단용
   const [status, setStatus] = useState('센서 준비 중...');
-  const [trace, setTrace] = useState({ x: null, y: null, z: null });  // 실시간 3축 파형
-  const [showSignal, setShowSignal] = useState(false);  // 측정 신호(파형) 펼침 — 기본 숨김
   const [scoreHist, setScoreHist] = useState([]);  // 걷기 평활 점수 이력(라이브 그래프)
   const [rawHist, setRawHist] = useState([]);      // 걷기 원(raw) 점수 이력 — 모니터링 차트의 '흔들린 순간'용
+  const [trace, setTrace] = useState({ x: null, y: null, z: null });  // 실시간 3축 파형(시연 모드용)
   const [showMonitor, setShowMonitor] = useState(false);  // 시연 모드 오버레이
   const [elapsed, setElapsed] = useState(0);       // 측정 경과 시간(초)
   const [cadenceLive, setCadenceLive] = useState(null);  // 최근 10초 걸음 간격 기반 리듬(spm)
@@ -185,7 +159,7 @@ export default function ElderMeasure() {
       }
     });
 
-    // 파형은 점수계산과 별개로 ~150ms마다 갱신 (50Hz 리렌더는 과부하)
+    // 파형은 점수계산과 별개로 ~150ms마다 갱신 (50Hz 리렌더는 과부하) — 시연 모드 전용.
     const traceTimer = setInterval(() => {
       const buf = bufRef.current;
       if (buf.length < 8) return;
@@ -208,26 +182,9 @@ export default function ElderMeasure() {
   }, []);
   const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
 
-  // 라이브 펄스 (측정 중임을 알리는 모던 인디케이터)
-  const pulse = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 0, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, []);
-  const dotScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] });
-  const dotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
-
-  const stationary = result?.activityState === 'STATIONARY';
-  const score = shownScore;   // 마지막 점수 유지 — 정지 중에도 점수는 계속 표시(지금 상태 타일만 정지)
-  const tone = score == null ? 'idle' : riskTone(score, shownRisk);
-  const accent = TONE_DOT[tone];
-  const offset = score != null ? CIRC * (1 - score / 100) : CIRC;
-  const measuring = !stationary && result?.score != null;  // 펄스는 실제 걷는 중에만
-  const distanceM = Math.round(steps * stepLenRef.current);  // 이동 거리(m, 추정): 걸음 수 × 보폭
+  const score = shownScore;   // 마지막 점수 유지 — 정지 중에도 점수는 계속 표시
+  const tone = score == null ? 'ok' : riskTone(score, shownRisk);
+  const distanceM = Math.round(steps * stepLenRef.current);  // 이동 거리(m, 추정): 걸음 수 × 보폭 — 화면엔 표시하지 않음(추정값)
 
   // 모니터링 차트 데이터(평활+원점수 겹쳐 그림) + 라이브 요약
   const chartData = scoreHist.map((sc, i) => ({ smooth: sc, raw: rawHist[i] ?? sc }));
@@ -235,8 +192,8 @@ export default function ElderMeasure() {
   const minScoreLive = scoreHist.length ? Math.min(...scoreHist) : null;
 
   // 기록 조건(MIN_WALK_WINDOWS)까지 얼마나 남았는지 실시간으로 알린다.
-  // scoreHist는 걷기 윈도우마다 1개씩 쌓여 accRef.current.rawP와 길이가 같다.
   const walkWindows = scoreHist.length;
+  const progressRatio = Math.min(1, walkWindows / MIN_WALK_WINDOWS);
   const guideText = walkWindows === 0 ? '주머니에 넣고 평소처럼 걸어주세요'
     : walkWindows < MIN_WALK_WINDOWS
       ? `약 ${Math.ceil((MIN_WALK_WINDOWS - walkWindows) * STRIDE_SEC)}초 더 걸으면 기록돼요`
@@ -246,12 +203,6 @@ export default function ElderMeasure() {
     : tone === 'danger' ? '위험 보행 의심'
     : tone === 'caution' ? '이상 보행 의심'
     : '정상 보행';
-
-  const stats = [
-    ['지금 상태', stateLabel(result), ''],
-    ['걸음 수', String(steps), '걸음'],
-    ['이동 거리', `약 ${distanceM}`, 'm'],
-  ];
 
   const buildSummary = (lowConfidence) => {
     const a = accRef.current;
@@ -334,147 +285,87 @@ export default function ElderMeasure() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <LinearGradient
-        colors={[T.blue, T.blueDark]}
-        start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
-        style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: heroPadB, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' }}>
-        <View style={{ position: 'absolute', right: -60, top: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.08)' }}/>
-        <View style={{ position: 'absolute', left: -50, bottom: -90, width: 200, height: 200, borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.05)' }}/>
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Pressable
-            onPress={() => router.back()}
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.arrowLeft width={20} height={20} color="#fff"/>
-          </Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ width: 8, height: 8 }}>
-              {measuring && (
-                <Animated.View style={{ position: 'absolute', width: 8, height: 8, borderRadius: 4, backgroundColor: '#86E3C1', transform: [{ scale: dotScale }], opacity: dotOpacity }}/>
-              )}
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: measuring ? '#86E3C1' : 'rgba(255,255,255,0.5)' }}/>
-            </View>
-            <Text style={{ fontSize: 14, color: '#fff', fontFamily: T.fontSemiBold }}>{status}</Text>
-          </View>
-          <Pressable
-            onPress={() => setShowMonitor(true)}
-            style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.chart width={20} height={20} color="#fff"/>
+      <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.xl, paddingBottom: T.sp.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink }}>측정 중</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.lg }}>
+          <Text style={{ fontSize: T.fs.h, color: T.body }}>{mmss}</Text>
+          <Pressable onPress={() => setShowMonitor(true)} hitSlop={10}>
+            <Icon.chart width={22} height={22} color={T.muted}/>
           </Pressable>
         </View>
-
-        <View style={{ marginTop: heroGap, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          {/* 점수 링 — 홈과 동일한 사이징(작게 + 가로 배치) */}
-          <View style={{ width: RING, height: RING, alignItems: 'center', justifyContent: 'center' }}>
-            <Svg width={RING} height={RING} viewBox={`0 0 ${RING} ${RING}`}>
-              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="rgba(255,255,255,0.22)" strokeWidth="10" fill="none"/>
-              <Circle cx={RING / 2} cy={RING / 2} r={R} stroke="#fff" strokeWidth="10" fill="none"
-                strokeLinecap="round" strokeDasharray={CIRC} strokeDashoffset={offset}
-                transform={`rotate(-90 ${RING / 2} ${RING / 2})`}/>
-            </Svg>
-            <View style={{ position: 'absolute', alignItems: 'center' }}>
-              <Text style={{ fontSize: scoreFs, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -1, lineHeight: scoreFs + 2 }}>
-                {score != null ? score : '--'}
-              </Text>
-              <Text style={{ fontSize: 14, fontFamily: T.font, color: 'rgba(255,255,255,0.75)', marginTop: -2 }}>/ 100점</Text>
-            </View>
-          </View>
-
-          {/* 결과 · 타이머 · 안내 (오른쪽 세로) */}
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 100 }}>
-              <View style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: accent }}/>
-              <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: '#fff', letterSpacing: -0.2 }}>{centerText}</Text>
-            </View>
-            <Text style={{ fontSize: 15, color: 'rgba(255,255,255,0.9)', fontFamily: T.fontSemiBold, marginTop: 10 }}>
-              측정 시간 <Text style={{ fontFamily: T.fontExtraBold, color: '#fff' }}>{mmss}</Text>
-            </Text>
-            <Text style={{ fontSize: 14, color: 'rgba(255,255,255,0.82)', fontFamily: T.font, marginTop: 8, lineHeight: 19 }}>
-              {guideText}
-            </Text>
-          </View>
-        </View>
-      </LinearGradient>
+      </View>
+      {score == null && (
+        <Text style={{ paddingHorizontal: T.sp.xl, fontSize: T.fs.caption, color: T.muted, marginTop: -2 }}>{status}</Text>
+      )}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
-        {/* 점수 쉬운 설명 */}
-        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: T.blueWash, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: T.blueSoft }}>
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon.spark width={20} height={20} color={T.blue}/>
-            </View>
-            <Text style={{ flex: 1, fontSize: 14.5, color: T.body, fontFamily: T.fontMedium, lineHeight: 21 }}>
-              걸음 점수는 걸음이 얼마나 안정적인지 보여줘요. <Text style={{ fontFamily: T.fontBold, color: T.ink }}>70점이 넘으면 안정적</Text>이에요.
-            </Text>
-          </View>
-        </View>
-
-        {/* 지표 */}
-        <View style={{ paddingHorizontal: 16, marginTop: 12, flexDirection: 'row', gap: 10 }}>
-          {stats.map(([l, v, sub], k) => (
-            <Card key={k} pad={14} style={{ borderRadius: 16, flex: 1 }}>
-              <Text style={{ fontSize: 14, color: T.body, fontFamily: T.fontSemiBold }}>{l}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 6 }}>
-                <Text style={{ fontSize: String(v).length > 6 ? 16 : 22, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.4 }}>{v}</Text>
-                {!!sub && <Text style={{ fontSize: 12, color: T.muted, marginBottom: 3 }}>{sub}</Text>}
+        {/* 지금 걸음 점수 */}
+        <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.md }}>
+          <Card pad={T.sp.xl} style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: T.fs.body, color: T.muted }}>지금 걸음 점수</Text>
+            <Text style={{
+              fontSize: T.fs.display, fontFamily: T.fontExtraBold, color: T.ink,
+              lineHeight: T.fs.display * 1.1, marginTop: 2,
+            }}>{score ?? '--'}</Text>
+            {score != null && (
+              <View style={{ marginTop: T.sp.sm }}>
+                <Pill tone={tone} size="lg">{centerText}</Pill>
               </View>
-            </Card>
-          ))}
-        </View>
+            )}
 
-        {/* 라이브 점수 그래프 */}
-        <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
-          <Card pad={16} style={{ borderRadius: 18 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <Text style={{ fontSize: 15, color: T.ink, fontFamily: T.fontBold }}>점수 변화</Text>
-              {scoreHist.length >= 2 && (
-                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>최근 {Math.min(scoreHist.length, 60)}회</Text>
+            <View style={{ width: '100%', marginTop: T.sp.xl }}>
+              {scoreHist.length >= 2 ? (
+                <SparkLine data={scoreHist.slice(-60)} height={72} color={T.body} min={0} max={100} fill={false}/>
+              ) : (
+                <View style={{ height: 72, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: T.fs.caption, color: T.muted }}>걷기를 시작하면 점수 그래프가 그려져요</Text>
+                </View>
               )}
             </View>
-            {scoreHist.length >= 2 ? (
-              <SparkLine data={scoreHist.slice(-60)} height={72} color={T.blue} min={0} max={100}/>
-            ) : (
-              <View style={{ height: 72, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontMedium }}>걷기를 시작하면 점수 그래프가 그려져요</Text>
+            {scoreHist.length >= 2 && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginTop: T.sp.xs }}>
+                <Text style={{ fontSize: T.fs.caption, color: T.muted }}>최근 {Math.min(scoreHist.length, 60)}회</Text>
+                <Text style={{ fontSize: T.fs.caption, color: T.muted }}>70점 기준선</Text>
               </View>
             )}
           </Card>
         </View>
 
-        {/* 측정 신호 — 기본 숨김, 필요할 때만 펼침 (발표 시연용) */}
-        <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-          <Pressable onPress={() => setShowSignal((v) => !v)}
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 }}>
-            <Text style={{ fontSize: 14, color: T.muted, fontFamily: T.fontSemiBold }}>{showSignal ? '측정 신호 숨기기' : '측정 신호 자세히 보기'}</Text>
-            <View style={{ transform: [{ rotate: showSignal ? '270deg' : '90deg' }] }}>
-              <Icon.chevron width={16} height={16} color={T.muted}/>
+        {/* 기록까지 남은 시간 — 이 화면의 핵심. 저장 시점이 아니라 걷는 동안 미리 알린다. */}
+        <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
+          <Card pad={T.sp.xl}>
+            <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{guideText}</Text>
+            <View style={{ height: 10, borderRadius: 5, backgroundColor: T.line, marginTop: T.sp.lg, overflow: 'hidden' }}>
+              <View style={{ height: 10, borderRadius: 5, backgroundColor: T.blue, width: `${Math.round(progressRatio * 100)}%` }}/>
             </View>
-          </Pressable>
-          {showSignal && (
-            <Card pad={16} style={{ borderRadius: 18, marginTop: 2 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                <Text style={{ fontSize: 13, color: T.body, fontFamily: T.fontSemiBold }}>실시간 가속도 (x · y · z)</Text>
-                <Text style={{ fontSize: 13, color: T.muted, fontFamily: T.fontSemiBold }}>{stateLabel(result)}</Text>
-              </View>
-              <IMUTrace height={38} color={T.blue} data={trace.x}/>
-              <IMUTrace height={38} color="#7B5BD9" data={trace.y}/>
-              <IMUTrace height={38} color={T.ok} data={trace.z}/>
-            </Card>
-          )}
+            <Text style={{ fontSize: T.fs.caption, color: T.muted, marginTop: T.sp.sm }}>
+              걸음이 너무 적으면 하루 평균이 흐려져서 기록에 남지 않아요
+            </Text>
+          </Card>
         </View>
+
+        {/* 걸음 수 — 「제대로 세고 있다」는 신호. 이동 거리는 추정값이라 표시하지 않는다. */}
+        <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
+          <Card pad={T.sp.lg} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: T.fs.body, color: T.body }}>걸음 수</Text>
+            <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{steps}보</Text>
+          </Card>
+        </View>
+
+        <Text style={{ fontSize: T.fs.body, color: T.muted, textAlign: 'center', paddingHorizontal: T.sp.xl, marginTop: T.sp.lg }}>
+          휴대폰을 주머니에 넣고 평소처럼 걸어주세요
+        </Text>
       </ScrollView>
 
-      {/* 측정 완료 — 크고 명확한 버튼 */}
-      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 16), paddingTop: 10, backgroundColor: T.bg }}>
+      {/* 측정 완료 — 크고 명확한 버튼, 하단 고정 */}
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: T.sp.lg, paddingTop: T.sp.sm, paddingBottom: Math.max(insets.bottom, T.sp.lg), backgroundColor: T.bg }}>
         <Pressable
           onPress={finish}
           style={({ pressed }) => ({
-            height: 62, borderRadius: 18, backgroundColor: pressed ? T.blueDark : T.blue,
-            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-            shadowColor: T.blue, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 14, elevation: 5,
+            height: 60, borderRadius: T.radius.md, backgroundColor: pressed ? T.blueDark : T.blue,
+            alignItems: 'center', justifyContent: 'center',
           })}>
-          <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: '#fff' }}/>
-          <Text style={{ fontSize: 19, fontFamily: T.fontExtraBold, color: '#fff', letterSpacing: -0.3 }}>측정 완료</Text>
+          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>측정 완료</Text>
         </Pressable>
       </View>
 

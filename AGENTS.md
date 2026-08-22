@@ -54,6 +54,7 @@ scripts/nevo-dev.ps1  # 로컬 백엔드(Docker+Spring) 기동
 **탭 구성** — WARD: 홈·기록·보호자·내정보(4탭) / GUARDIAN: 대시보드·알림·위치·내정보.
 WARD의 「걷기」 탭은 없앴다 — 상시 측정이 목표라 측정 화면은 어쩌다 가는 곳이고, 홈 카드로만 진입한다.
 `TabBar`는 `router.push`라 탭 대상 화면도 `AppHeader onBack`을 함께 쓴다. 탭 항목을 바꾸면 **각 화면의 `CARE_TABS`/`ELDER_TABS` 사본과 `active` 인덱스를 모두** 맞출 것(화면마다 복사돼 있음).
+`TabBar`는 확정 디자인 이후 아이콘 없이 글자만 쓴다(`{ label, path }`) — 탭 배열에 `icon` 필드를 넣어도 무시된다.
 역할 공용 화면(`SessionDetail`)은 `src/screens/` 최상위에 두고 라우트만 역할별로 둔다.
 ⚠️ `SessionDetail`은 **측정 직후(로컬 `sessionStore`)와 기록 열람(서버 리포트)을 겸한다** — `sessionId` 유무로 갈린다.
 WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모두 이 화면을 가리키므로,
@@ -64,10 +65,10 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - 타입스케일 `T.fs`(노인 친화: 본문 17px+, 캡션 14px+, **9~13px 본문 금지**), 터치 `T.tap`(56). 신규 화면은 인라인 숫자 대신 이걸 사용
 - 색상: `T.blue/blueDark/blueSoft/blueWash`, `T.ok/caution/danger(+Soft)`, `T.ink/body/muted/line/bg`
 - 위험도 색 기준은 **`src/risk.js`의 `riskTone(score, riskLevel)`로 일원화** (점수<50=danger, SUSPECTED 또는 50~69=caution, 그 외 ok). 화면별 하드코딩 금지
-- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · DailyTrend · TrustChart · IMUTrace · ElderTopBlock
+- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · DailyTrend · TrustChart · IMUTrace · RangeBar
 - 일별 점수 추세는 **`DailyTrend`(선)** 를 쓴다. 막대(`BarChart`)는 제거됨 — 점수는 합산되는 양이 아니라 0~100 척도 위의 위치이고,
   막대는 기록 없는 날과 0점을 구분하지 못한다. 근거는 [docs/REDESIGN.md](docs/REDESIGN.md) 「차트」 절
-- ⚠️ `ElderTopBlock`은 `ElderResult` 통합으로 **현재 사용처가 없다**(삭제 보류)
+- 오늘/이번 측정 점수가 0~100 척도 어디쯤인지는 **`RangeBar`**(범위 띠+마커)로 보여준다(WARD 홈·측정결과)
 - ⚠️ `Text`/`TextInput`은 **`src/components/` 래퍼로만** import(전역 글씨 배율 적용). react-native에서 직접 가져오지 말 것 — 예외는 `DemoMonitor`(아래 참고)
 - CSS→RN: 그라디언트=expo-linear-gradient, 2열 그리드=`flexDirection:'row'`+`flex:1`(width% 금지), SVG=react-native-svg
 

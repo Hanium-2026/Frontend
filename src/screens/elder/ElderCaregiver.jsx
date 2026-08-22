@@ -7,18 +7,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
-import SectionLabel from '../../components/SectionLabel';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
+import { getMe } from '../../api/user';
 import { getMyGuardians, generateLinkCode } from '../../api/links';
 import { ApiError } from '../../api/client';
 
 const ELDER_TABS = [
-  { icon: 'home',    label: '홈',    path: '/(elder)/' },
-  { icon: 'history', label: '기록',  path: '/(elder)/history' },
-  { icon: 'family',  label: '보호자', path: '/(elder)/caregiver' },
-  { icon: 'user',    label: '내정보', path: '/(elder)/profile' },
+  { label: '홈', path: '/(elder)/' },
+  { label: '기록', path: '/(elder)/history' },
+  { label: '보호자', path: '/(elder)/caregiver' },
+  { label: '내정보', path: '/(elder)/profile' },
 ];
 
 const PHONE_RE = /^01[016789]\d{7,8}$/;
@@ -32,7 +32,7 @@ const STEPS = [
 function fmtLinked(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()} 연결됨`;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 연결`;
 }
 
 // 만료 시각(백엔드 LocalDateTime) → "오후 3:24까지 사용할 수 있어요"
@@ -45,6 +45,7 @@ function fmtExpiry(iso) {
 
 export default function ElderCaregiver() {
   const insets = useSafeAreaInsets();
+  const [name, setName] = useState('');
   const [guardians, setGuardians] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -56,6 +57,7 @@ export default function ElderCaregiver() {
 
   const load = useCallback(() => {
     let alive = true;
+    getMe().then((m) => { if (alive) setName(m?.name || ''); }).catch(() => {});
     getMyGuardians()
       .then((list) => { if (alive) setGuardians(list ?? []); })
       .catch(() => { if (alive) setGuardians([]); })
@@ -86,51 +88,52 @@ export default function ElderCaregiver() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader title="보호자" sub="가족과 결과를 함께 보세요"/>
+      <AppHeader title="보호자"/>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false}>
-        <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.xs }}>
-          <SectionLabel>연결된 가족 ({guardians.length}명)</SectionLabel>
-          <Card pad={0}>
-            {loading ? (
-              <View style={{ padding: T.sp.xl, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>
-            ) : guardians.length === 0 ? (
-              <View style={{ padding: T.sp.xl, alignItems: 'center' }}>
-                <Text style={{ fontSize: T.fs.body, color: T.body, fontFamily: T.fontSemiBold }}>아직 연결된 보호자가 없어요.</Text>
-              </View>
-            ) : guardians.map((g, i) => (
-              <View key={g.guardianUserId} style={{
-                flexDirection: 'row', alignItems: 'center', gap: T.sp.md, padding: T.sp.lg,
-                borderBottomWidth: i < guardians.length - 1 ? 1 : 0, borderBottomColor: T.line,
-              }}>
-                <Avatar name={g.name} size={44}/>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>{g.name}</Text>
-                  <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: 3 }}>{fmtLinked(g.linkedAt)}</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
+        <View style={{ paddingHorizontal: T.sp.lg, gap: T.sp.lg }}>
+          <Text style={{ fontSize: T.fs.body, color: T.body }}>
+            {guardians.length > 0
+              ? `${guardians.length}명이 ${name ? `${name}님` : '회원님'}의 걸음을 함께 보고 있어요`
+              : '아직 연결된 보호자가 없어요'}
+          </Text>
+
+          {loading ? (
+            <View style={{ padding: T.sp.xl, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>
+          ) : guardians.length > 0 && (
+            <Card pad={0}>
+              {guardians.map((g, i) => (
+                <View key={g.guardianUserId} style={{
+                  flexDirection: 'row', alignItems: 'center', gap: T.sp.lg, minHeight: 56,
+                  paddingVertical: T.sp.md, paddingHorizontal: T.sp.xl,
+                  borderBottomWidth: i < guardians.length - 1 ? 1 : 0, borderBottomColor: T.line,
+                }}>
+                  <Avatar name={g.name} size={48} tone={[T.line, T.body]}/>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{g.name}</Text>
+                    <Text style={{ fontSize: T.fs.caption, color: T.muted, marginTop: 2 }}>{fmtLinked(g.linkedAt)}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </Card>
+          )}
+
+          <Card pad={T.sp.xl} style={{ backgroundColor: T.line }}>
+            <Text style={{ fontSize: T.fs.caption, color: T.muted, lineHeight: T.fs.caption * 1.6 }}>
+              「보호자와 연결하기」를 누르면 전화번호를 입력해 6자리 코드를 만들 수 있어요. 이 코드를 보호자에게 알려주면 연결돼요.
+            </Text>
           </Card>
         </View>
-
-        <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.xl }}>
-          <Pressable onPress={() => setSheet(true)}>
-            <Card pad={T.sp.lg} style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
-              <View style={{
-                width: 44, height: 44, borderRadius: T.radius.md, backgroundColor: T.blueSoft,
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon.plus width={24} height={24} color={T.blue}/>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.ink }}>보호자와 연결하기</Text>
-                <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: 3 }}>연동 코드로 가족을 연결해요</Text>
-              </View>
-              <Icon.chevron width={20} height={20} color={T.muted}/>
-            </Card>
-          </Pressable>
-        </View>
       </ScrollView>
+
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 64 + Math.max(insets.bottom, 10), paddingHorizontal: T.sp.lg, paddingVertical: T.sp.md, backgroundColor: T.bg }}>
+        <Pressable onPress={() => setSheet(true)} style={({ pressed }) => ({
+          height: 60, borderRadius: T.radius.md, backgroundColor: pressed ? T.blueDark : T.blue,
+          alignItems: 'center', justifyContent: 'center',
+        })}>
+          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>보호자와 연결하기</Text>
+        </Pressable>
+      </View>
 
       <TabBar tabs={ELDER_TABS} active={2}/>
 

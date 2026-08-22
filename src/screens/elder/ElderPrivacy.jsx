@@ -5,27 +5,34 @@ import T from '../../tokens';
 import Card from '../../components/Card';
 import AppHeader from '../../components/AppHeader';
 
-const SECTIONS = [
-  ['수집하는 정보', '걸음 센서 데이터(가속도·자이로), 보행 점수, 신체정보(키·몸무게·생년월일·성별), 전화번호를 수집해요.'],
-  ['기기 안에서 분석', '보행 정상/이상 판정은 휴대폰 안에서 이뤄져요. 원시 센서 데이터는 서버로 보내지 않고, 분 단위 점수 요약만 저장돼요.'],
-  ['정보 이용 목적', '보행 분석과 이상 조기 탐지, 연결된 보호자와의 결과 공유, 위험 상황 알림에만 사용해요.'],
-  ['위치 정보', '보호자와 연결한 경우에 한해, 안전 확인을 위해 위치를 보호자에게 공유할 수 있어요.'],
-  ['보관과 삭제', '회원 탈퇴 시 계정과 관련 데이터는 삭제돼요. 내 정보 화면에서 언제든 탈퇴할 수 있어요.'],
-];
+const SENT_ITEMS = ['걸음 점수와 측정 시각', '이름 · 전화번호 · 신체 정보', '현재 위치'];
 
 export default function ElderPrivacy() {
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <AppHeader title="개인정보 보호" sub="어떤 정보를 어떻게 지키는지 알려드려요" onBack/>
+      <AppHeader title="개인정보 보호" onBack/>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        <View style={{ paddingHorizontal: 16, marginTop: 4, gap: 12 }}>
-          {SECTIONS.map(([title, body], i) => (
-            <Card key={i} pad={18} style={{ borderRadius: 18 }}>
-              <Text style={{ fontSize: T.fs.h, fontFamily: T.fontBold, color: T.ink }}>{title}</Text>
-              <Text style={{ fontSize: T.fs.sub, fontFamily: T.font, color: T.body, marginTop: 8, lineHeight: 24 }}>{body}</Text>
-            </Card>
-          ))}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: T.sp.xxl }} showsVerticalScrollIndicator={false}>
+        <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.xs, gap: T.sp.lg }}>
+          <Card pad={T.sp.xl}>
+            <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35 }}>
+              걸음 신호는{'\n'}휴대폰을 떠나지 않습니다
+            </Text>
+            <Text style={{ fontSize: T.fs.body, color: T.body, marginTop: T.sp.sm, lineHeight: T.fs.body * 1.4 }}>
+              센서 값은 기기 안에서 분석되고 지워집니다. 서버로 보내는 것은 세 가지뿐이에요.
+            </Text>
+          </Card>
+
+          <Card pad={0}>
+            {SENT_ITEMS.map((label, i) => (
+              <View key={label} style={{
+                paddingVertical: T.sp.lg, paddingHorizontal: T.sp.xl,
+                borderBottomWidth: i < SENT_ITEMS.length - 1 ? 1 : 0, borderBottomColor: T.line,
+              }}>
+                <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{label}</Text>
+              </View>
+            ))}
+          </Card>
         </View>
       </ScrollView>
     </View>

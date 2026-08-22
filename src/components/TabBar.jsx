@@ -4,29 +4,29 @@ import Text from './Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../tokens';
-import Icon from '../icons';
 
+// 확정 디자인: 아이콘 없이 글자만. 활성 탭은 위쪽 인셋 선(ink) + ink 색, 비활성은 muted.
 export default function TabBar({ tabs, active }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  // 하단 제스처/네비게이션 바 높이는 기기마다 달라 인셋으로 보정(없으면 최소 여백).
   const bottomPad = Math.max(insets.bottom, 10);
   return (
     <View style={{
       position: 'absolute', bottom: 0, left: 0, right: 0,
-      paddingBottom: bottomPad, paddingTop: 8,
-      backgroundColor: 'rgba(255,255,255,0.96)',
-      borderTopWidth: 0.5, borderTopColor: T.hair,
-      flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+      paddingBottom: bottomPad,
+      backgroundColor: T.surface,
+      borderTopWidth: 1, borderTopColor: T.line,
+      flexDirection: 'row',
     }}>
       {tabs.map((t, i) => {
         const on = i === active;
-        const I = Icon[t.icon];
         return (
           <Pressable key={i} onPress={() => t.path && router.push(t.path)}
-            style={{ flex: 1, alignItems: 'center', gap: 3 }}>
-            <I width={24} height={24} color={on ? T.blue : T.muted}/>
-            <Text style={{ fontSize: 10.5, fontFamily: on ? T.fontBold : T.fontMedium, color: on ? T.blue : T.muted }}>
+            style={{
+              flex: 1, height: 64, alignItems: 'center', justifyContent: 'center',
+              borderTopWidth: 3, borderTopColor: on ? T.ink : 'transparent', marginTop: -1,
+            }}>
+            <Text style={{ fontSize: T.fs.body, fontFamily: on ? T.fontSemiBold : T.fontMedium, color: on ? T.ink : T.muted }}>
               {t.label}
             </Text>
           </Pressable>
