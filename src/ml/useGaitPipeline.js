@@ -16,10 +16,9 @@ import {
   buildStage2Input,
   softmaxArgmax,
   STAGE1_CLASSES,
-  STAGE2_CLASSES,
+  STAGE2_WINDOW_SIZE,
 } from './gaitPreprocess';
 
-const ABNORMAL_IDX = STAGE2_CLASSES.indexOf('abnormal');
 const STATIONARY_CLASSES = new Set(['sitting', 'standing']); // 1차가 이 동작을 확신하면 정지 처리
 // 판정 파라미터 — 시연 모드가 화면에 그대로 표시하므로 export(화면 하드코딩 금지).
 export const EWMA_ALPHA = 0.2;        // 평활화 강도(작을수록 안정·느림). 시정수 ~5윈도우(~6초)
@@ -65,7 +64,9 @@ export function useGaitPipeline() {
   // 동기 추론. 반환 형태는 기존 세션 업로드 계약과 동일.
   // {activityState, activityClass, activityConfidence, score, riskLevel, cadence, pAbnormal, pRaw}
   // + 시연 표시용: {accStd, gyroAvg, ms1, ms2} — 정지 게이트 실측치와 단계별 추론 지연(ms).
-  function analyze(window) {
+  // window: 1차용 raw [ax,ay,az,gx,gy,gz] 윈도우. filteredWindow: 2차용 이미 causal 필터링된
+  // [asvmFiltered, gsvmFiltered] 윈도우(createGaitFilter로 세션 내내 상태 유지하며 만든 것).
+  function analyze(window, filteredWindow) {
     const m1 = stage1Ref.current;
     const m2 = stage2Ref.current;
     if (!m1 || !m2) return null;
@@ -94,12 +95,26 @@ export function useGaitPipeline() {
       return { activityState: 'OTHER', activityClass, activityConfidence: conf1, score: null, riskLevel: 'NORMAL', cadence: null, ...gate, ms1, ms2: 0 };
     }
 
-    // 2차: 정상/이상 보행 (원단위 입력)
+    // 2차: 정상/이상 보행 (causal 필터링된 ASVM/GSVM 입력, 출력은 시그모이드 P(이상) 단일값)
+    const stage2Samples = resampleWindow(filteredWindow, STAGE2_WINDOW_SIZE, [0, 0]);
+    const stage2Input = buildStage2Input(stage2Samples);
     const t2 = nowMs();
-    const out2 = new Float32Array(m2.runSync([buildStage2Input(samples).buffer])[0]);
+    const out2 = new Float32Array(m2.runSync([stage2Input.buffer])[0]);
     const ms2 = nowMs() - t2;
-    const { probs } = softmaxArgmax(out2);
-    const pRaw = ABNORMAL_IDX >= 0 ? (probs[ABNORMAL_IDX] ?? 0) : 0;
+    const pRaw = out2[0] ?? 0;
+
+    // [NEVO-DEBUG] 임시 진단 로그 — score=9 등 이상 판정 원인 확인용. 확인 끝나면 이 블록 삭제.
+    if (__DEV__) {
+      const last = stage2Samples[stage2Samples.length - 1];
+      const azArr = [], gzArr = [];
+      for (let i = 0; i < stage2Input.length; i += 2) { azArr.push(stage2Input[i]); gzArr.push(stage2Input[i + 1]); }
+      const stat = (a) => ({ min: Math.min(...a).toFixed(2), max: Math.max(...a).toFixed(2), mean: (a.reduce((x, y) => x + y, 0) / a.length).toFixed(2) });
+      console.log('[NEVO-DEBUG]', JSON.stringify({
+        asvmFiltered: last[0]?.toFixed(4), gsvmFiltered: last[1]?.toFixed(4),
+        asvmZWindow: stat(azArr), gsvmZWindow: stat(gzArr),
+        pRaw: pRaw.toFixed(4),
+      }));
+    }
 
     // P(이상) 지수이동평균 — 시드=0(=100점)에서 시작해 실제값으로 수렴(초반부터 낮게 시작하지 않게).
     // 세션 판정은 이 수렴값이 아니라 raw 분포로 내므로(pRaw 반환), 시드값은 실시간 표시에만 영향.

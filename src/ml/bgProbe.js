@@ -17,7 +17,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { Asset } from 'expo-asset';
 import { loadTensorflowModel } from 'react-native-fast-tflite';
-import { buildStage2Input, resampleWindow, WINDOW_SIZE } from './gaitPreprocess';
+import { buildStage2Input, STAGE2_WINDOW_SIZE } from './gaitPreprocess';
 import { setItem, getItem, removeItem } from '../store/storage';
 
 const TASK = 'nevo-bg-probe';
@@ -40,12 +40,9 @@ const persist = (s) => {
 };
 
 // 추론 입력은 고정 합성 파형이다 — 점수가 아니라 «runSync가 도는가»만 보므로 값은 상관없다.
-const SYNTH = resampleWindow(
-  Array.from({ length: WINDOW_SIZE }, (_, i) => [
-    Math.sin(i / 8) * 0.3, Math.cos(i / 11) * 0.2, 0.98,
-    Math.sin(i / 7) * 0.1, 0.01, 0.01,
-  ]),
-);
+const SYNTH = Array.from({ length: STAGE2_WINDOW_SIZE }, (_, i) => [
+  1 + Math.sin(i / 8) * 0.3, 1.5 + Math.cos(i / 11) * 0.2,
+]);
 
 export async function readProbe() {
   if (_state) return _state;
@@ -111,7 +108,7 @@ export async function startProbe() {
         ticks: s.ticks + 1,
         lastTickAt: Date.now(),
         lastMs: Date.now() - t0,
-        lastP: Math.round((p[1] ?? 0) * 1000) / 1000,
+        lastP: Math.round((p[0] ?? 0) * 1000) / 1000,
         lastError: null,
       });
     } catch (e) {

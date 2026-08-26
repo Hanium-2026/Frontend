@@ -1,31 +1,36 @@
 // 보행 분석 전처리 (순수 함수 — 네이티브 의존성 없음, 단위 테스트 가능).
 // 입력 윈도우: [[ax,ay,az,gx,gy,gz], ...]  (expo-sensors 단위: acc=g, gyro=rad/s)
 //
-// 2단계 on-device 파이프라인 (두 모델 모두 입력 (1,100,10), g·rad/s 원단위):
-//   피처 순서: acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_x_dyn, acc_y_dyn, acc_z_dyn, acc_norm
-//     - acc_dyn = acc - mean(acc over window) (중력/오프셋 제거한 동적 성분)
-//     - acc_norm = ||acc|| (중력 포함 크기)
-//   1차(동작분류, 정완 huga+93 재학습본)·2차(정상/이상) 모두 g·rad/s 원단위(scaler acc_norm 평균≈1.0~1.2)
-//   → 변환 없이 스케일러(mean/scale)만 다르게 정규화한다.
+// 2단계 on-device 파이프라인:
+//   1차(동작분류, 정완 huga+93 재학습본) — 입력 (1,100,10), g·rad/s 원단위, 필터 없음.
+//     피처 순서: acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, acc_x_dyn, acc_y_dyn, acc_z_dyn, acc_norm
+//       - acc_dyn = acc - mean(acc over window) (중력/오프셋 제거한 동적 성분)
+//       - acc_norm = ||acc|| (중력 포함 크기)
+//   2차(정상/이상, 정완 TCN v2) — 입력 (1,128,2) = [ASVM, GSVM], causal Butterworth 3Hz 필터 후 크기.
+//     ASVM=√(ax²+ay²+az²), GSVM=√(gx²+gy²+gz²)를 각각 4차 3Hz 저역통과(causal, order/cutoff는
+//     NEVO-DataCollector `svm-filter.js`와 동일 스펙)로 거른 값 — raw 크기가 아니라 필터링된 크기.
+//     학습 데이터도 동일 스펙으로 causal 재생성함(filtfilt는 미래 샘플이 필요해 실시간 재현 불가 → 배제).
+//     필터는 세션 전체에 걸쳐 상태를 유지해야 하므로(윈도우마다 리셋하면 안 됨) createGaitFilter()로
+//     매 샘플(스트림)마다 갱신하고, 그 결과를 모아서 마지막 128개를 모델 입력으로 쓴다.
 
 import stage1Scaler from '../../assets/models/gait_stage1_scaler.json';
 import stage2Scaler from '../../assets/models/gait_scaler.json';
 
-export const WINDOW_SIZE = stage2Scaler.window_size;        // 100
-export const SAMPLE_RATE_HZ = stage2Scaler.sample_rate_hz;  // 50
-export const STAGE1_CLASSES = stage1Scaler.classes;         // ['downstairs','running','sitting','standing','upstairs','walking']
-export const STAGE2_CLASSES = stage2Scaler.classes;         // ['normal','abnormal']
-const FEATURES = stage2Scaler.feature_names.length;         // 10
+export const WINDOW_SIZE = stage1Scaler.window_size;         // 100 (1차 입력 윈도우)
+export const STAGE2_WINDOW_SIZE = stage2Scaler.window_size;  // 128 (2차 입력 윈도우, 50% 오버랩)
+export const SAMPLE_RATE_HZ = stage1Scaler.sample_rate_hz;   // 50 (1차·2차 동일)
+export const STAGE1_CLASSES = stage1Scaler.classes;          // ['downstairs','running','sitting','standing','upstairs','walking']
+const FEATURES = stage1Scaler.feature_names.length;          // 10
 
 const clip = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-// 윈도우를 정확히 WINDOW_SIZE 샘플로 맞춘다. 더 길면 최근 N개, 짧으면 앞을 첫 샘플로 패딩.
-export function resampleWindow(window) {
+// 윈도우를 정확히 size 샘플로 맞춘다. 더 길면 최근 N개, 짧으면 앞을 첫 샘플로 패딩.
+export function resampleWindow(window, size = WINDOW_SIZE, zero = [0, 0, 0, 0, 0, 0]) {
   const n = window.length;
-  if (n >= WINDOW_SIZE) return window.slice(n - WINDOW_SIZE);
+  if (n >= size) return window.slice(n - size);
   const pad = [];
-  const first = window[0] || [0, 0, 0, 0, 0, 0];
-  for (let i = 0; i < WINDOW_SIZE - n; i++) pad.push(first);
+  const first = window[0] || zero;
+  for (let i = 0; i < size - n; i++) pad.push(first);
   return pad.concat(window);
 }
 
@@ -224,8 +229,7 @@ export function computeGaitMetrics(steps, minSteps = 8) {
   };
 }
 
-// 피처 10개 계산 후 scaler(mean/scale)로 표준화 → Float32Array (WINDOW_SIZE*FEATURES).
-// 1차·2차 모두 g·rad/s 원단위 입력, 스케일러(mean/scale)만 다르다.
+// 1차 피처 10개 계산 후 scaler(mean/scale)로 표준화 → Float32Array (WINDOW_SIZE*FEATURES). g·rad/s 원단위.
 function buildInput(samples, mean, scale) {
   const n = samples.length;
   let mx = 0, my = 0, mz = 0;
@@ -249,9 +253,79 @@ export function buildStage1Input(samples) {
   return buildInput(samples, stage1Scaler.mean, stage1Scaler.scale);
 }
 
-// 2차(정상/이상) — g·rad/s 원단위. stage2 scaler로 정규화.
-export function buildStage2Input(samples) {
-  return buildInput(samples, stage2Scaler.mean, stage2Scaler.scale);
+// ── 2차(정상/이상) — causal Butterworth 3Hz 필터 (NEVO-DataCollector `svm-filter.js` 이식) ──────
+// 원본은 학습 데이터를 만들 때 filtfilt(양방향)로 걸었지만, 실시간 스트림은 미래 샘플이 없어
+// 재현 불가 → causal(단방향, forward 1회)로만 구현한다. order/cutoff/fs는 원본과 동일.
+export const GAIT_FILTER_ORDER = 4;
+export const GAIT_FILTER_CUTOFF_HZ = 3;
+
+// order차 Butterworth 저역통과를 2차 섹션 배열로 설계(RBJ biquad, Butterworth 극점 배치 Q).
+function butterLowpassSections(order, cutoff, fs) {
+  const w0 = (2 * Math.PI * cutoff) / fs;
+  const cosw = Math.cos(w0);
+  const sinw = Math.sin(w0);
+  const sections = [];
+  const nSec = order / 2;
+  for (let i = 0; i < nSec; i++) {
+    const q = 1 / (2 * Math.cos((Math.PI * (2 * i + 1)) / (2 * order)));
+    const alpha = sinw / (2 * q);
+    const a0 = 1 + alpha;
+    sections.push({
+      b0: ((1 - cosw) / 2) / a0,
+      b1: (1 - cosw) / a0,
+      b2: ((1 - cosw) / 2) / a0,
+      a1: (-2 * cosw) / a0,
+      a2: (1 - alpha) / a0,
+    });
+  }
+  return sections;
+}
+
+// 단일 biquad 섹션의 상태를 유지하며 샘플을 하나씩 흘리는 causal 필터(Direct Form I).
+// 첫 샘플로 정상상태 초기화(x1=x2=y1=y2=x0) — 0에서 시작하는 인위적 워밍업 트랜지언트 방지.
+function createBiquadSection(coef) {
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0, seeded = false;
+  return {
+    next(x) {
+      if (!seeded) { x1 = x2 = y1 = y2 = x; seeded = true; }
+      const y = coef.b0 * x + coef.b1 * x1 + coef.b2 * x2 - coef.a1 * y1 - coef.a2 * y2;
+      x2 = x1; x1 = x;
+      y2 = y1; y1 = y;
+      return y;
+    },
+  };
+}
+
+function createButterworthLowpass(order, cutoff, fs) {
+  const sections = butterLowpassSections(order, cutoff, fs).map(createBiquadSection);
+  return { next(x) { return sections.reduce((v, s) => s.next(v), x); } };
+}
+
+// 세션 전체에 걸쳐 상태를 유지하는 ASVM/GSVM causal 필터. 윈도우마다 새로 만들면 안 되고
+// (리셋될 때마다 트랜지언트가 생김) 측정 세션당 하나만 만들어 매 샘플(스트림)마다 push해야 한다.
+export function createGaitFilter(fs = SAMPLE_RATE_HZ) {
+  const asvmFilter = createButterworthLowpass(GAIT_FILTER_ORDER, GAIT_FILTER_CUTOFF_HZ, fs);
+  const gsvmFilter = createButterworthLowpass(GAIT_FILTER_ORDER, GAIT_FILTER_CUTOFF_HZ, fs);
+  return {
+    // raw 가속도/자이로 샘플 하나 → [asvmFiltered, gsvmFiltered].
+    push(ax, ay, az, gx, gy, gz) {
+      const asvmRaw = Math.sqrt(ax * ax + ay * ay + az * az);
+      const gsvmRaw = Math.sqrt(gx * gx + gy * gy + gz * gz);
+      return [asvmFilter.next(asvmRaw), gsvmFilter.next(gsvmRaw)];
+    },
+  };
+}
+
+// 2차(정상/이상) — 이미 필터링된 [asvmFiltered, gsvmFiltered] 쌍의 윈도우를 scaler로 정규화.
+export function buildStage2Input(pairs) {
+  const { mean, scale } = stage2Scaler;
+  const n = pairs.length;
+  const out = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    out[i * 2] = (pairs[i][0] - mean[0]) / scale[0];
+    out[i * 2 + 1] = (pairs[i][1] - mean[1]) / scale[1];
+  }
+  return out;
 }
 
 // 모델 출력(logits 또는 확률)을 확률로 정규화 + argmax.

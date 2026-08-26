@@ -26,7 +26,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "POST_NOTIFICATIONS",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "HIGH_SAMPLING_RATE_SENSORS"
       ]
     },
     "web": {

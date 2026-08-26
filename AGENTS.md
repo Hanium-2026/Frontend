@@ -1,7 +1,7 @@
 # NEVO Frontend — AGENTS.md
 
 > 에이전트(Claude/Codex)가 읽고 작업하는 단일 기준 문서. 매 세션 컨텍스트에 자동 로드된다.
-> 최종 업데이트: 2026-08-18
+> 최종 업데이트: 2026-08-27
 >
 > 📌 **넣을 것 / 넣지 말 것**: 이 문서는 **다음 작업의 판단을 바꾸는 것만** 담는다(규칙·계약·열린 작업).
 >    "언제 무엇을 했다"는 경위는 git 히스토리가 정확하므로 여기 쓰지 않는다. 틀린 줄은 없는 줄보다 나쁘다.
@@ -79,10 +79,12 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 ## on-device 보행 분석 (★ 핵심)
 진입점: `ElderMeasure` → `src/ml/useGaitPipeline.js`(추론 훅) → `gaitPreprocess.js`(순수 전처리). 추론은 기기에서 수행, 서버는 결과 저장·리포트·FCM만 담당.
 
+⚠️ **센서 실제 수신 속도 — Android 12+(API 31+) 필수 권한.** `expo-sensors`(`SensorSubscription.kt`)는 JS의 `setUpdateInterval()`을 네이티브 센서 등록 속도에 안 씀 — 그건 이벤트 도착 후 소프트웨어 다운샘플링에만 쓰이고, **네이티브 등록 자체는 `HIGH_SAMPLING_RATE_SENSORS` 권한이 없으면 무조건 `SENSOR_DELAY_NORMAL`(~5Hz)로 떨어진다**(API 31 미만은 항상 FASTEST라 문제없음). 실기기(갤럭시 S21, Android 12+)에서 자이로 5.6Hz·가속도 16.7Hz(다른 시스템 프로세스가 이미 더 빠르게 쓰고 있어서 묻어간 값)로 실측됨 — 요청 간격을 바꿔도 무관하게 고정. 50Hz 전제로 설계된 causal Butterworth 필터·윈도우 길이가 전부 어긋나서 2차 모델이 실기기에서 오판정(정상 보행을 이상으로)하는 원인이었음. **`app.json`의 `android.permissions`에 `HIGH_SAMPLING_RATE_SENSORS` 추가함**(2026-08-27) — 네이티브 권한이라 **새 EAS dev build 필요**(Metro reload로는 반영 안 됨), 빌드 후 실기기 재검증 필수.
+
 **현재 구현 확정(2026-07-07, 실제 세션 번들 실측 기반):**
 - **1차 = `isStationary` 휴리스틱 + huga+93 활동분류 모델(6-class, g단위, `gait_stage1_activity.tflite`).** 정지(sitting/standing)는 방향 무관 휴리스틱이 앞단에서 차단, 움직이면 huga+93가 walking 여부 판정 → walking일 때만 2차. 실측 세션 게이팅 14/14(walking 12/12). ⚠️ 초기 재학습본(raw int16 스케일러)은 폰에서 2/14로 실패 → g단위 huga+93로 교체(변환층 없이 원단위). running·계단 구분 능력은 pocket 데이터 없어 **미검증**.
-- **2차 = `best_model_quantized-4.tflite`(양자화 normal/abnormal, LOSO 84.31%)** = 현재 배포본(`gait_model.tflite`+`gait_scaler.json`). P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정. abnormal 집단 = 파킨슨(`PD_*`)+뇌졸중(`CVA_*`)이라 보고서 "퇴행성 뇌질환 탐지" 목표 직결.
-- **전처리 = 1차·2차 모두 g·rad/s 원단위, 10피처 동일, 스케일러만 다름(변환 없음).** 정완 ASVM/GSVM+Butterworth 재학습은 향후 **2차 v2** 목표(아래 계약). ⚠️ 프론트에 필터를 "덧붙이면" 학습 분포와 어긋나 정확도 하락 — 반드시 모델과 동일 전처리.
+- **2차 = 정완 TCN v2(`gait_model.tflite`+`gait_scaler.json`, ASVM/GSVM 2피처, LOSO 83.75%, 피험자별 언더샘플링).** 입력 (1,128,2), 출력은 시그모이드 P(이상) 단일값(softmax 아님). P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정. abnormal 집단 구성은 이전 버전과 동일 계열(파킨슨/뇌졸중 계열 시뮬레이션 보행) 계승.
+- **전처리 = 1차는 g·rad/s 원단위 10피처(원본 그대로), 2차는 ASVM/GSVM 2피처를 causal 4차 3Hz Butterworth로 거른 값 — 스케일러·윈도우 크기 모두 서로 다름.** 아래 '재학습 계약'대로 causal(단방향)만 허용 — filtfilt를 프론트에 "덧붙이면" 학습 분포와 어긋나 정확도 하락.
 
 **정완 재학습 전처리 계약(프론트 실시간 미러링 가능 조건):**
 - 필터는 **인과(causal) IIR Butterworth 3Hz 저역통과**만. `filtfilt`(양방향·미래샘플) 금지 — 실시간 스트림에선 재현 불가, train/inference 불일치로 정확도 붕괴. **학습도 동일한 인과 필터**로.
@@ -98,9 +100,9 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - **출력**: 정상/이상, score, riskLevel(NORMAL/SUSPECTED), 좌우 비대칭→`symmetryScore` 변환, cadence/변동성. `dangerCount>0` → 보호자 FCM.
 
 ### 현재 구현 (코드 현실 — 위 목표와의 갭, 코드 작업 시 우선 확인)
-- **1차**: `motionLevel`(acc std<0.025g, gyro avg<0.04rad/s → `{stationary, accStd, gyroAvg}`) 휴리스틱 게이트 → 움직이면 **huga+93 활동분류**(`gait_stage1_activity.tflite`, 6-class, g단위)로 walking 판정. `useGaitPipeline`: 정지→STATIONARY, 1차가 walking→2차 실행, sitting/standing(conf≥0.8)→STATIONARY, 그 외(running·계단)→OTHER(점수 없음). `analyze`는 시연 표시용으로 `{accStd, gyroAvg, ms1, ms2}`(게이트 실측치·단계별 추론 지연)도 함께 반환한다.
-- **2차**: `gait_model.tflite` = **`best_model_quantized-4`(양자화 normal/abnormal, LOSO 84.31%)**. 단일 윈도우 신뢰 말고 세션 단위 집계 + P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정.
-- **전처리**: 피처 `acc_x,y,z, gyro_x,y,z, acc_x_dyn,y_dyn,z_dyn, acc_norm` (`acc_dyn`=윈도우 평균 제거, `acc_norm`=중력 포함 크기 ≈ ASVM 부분 충족). ⚠️ **GSVM·Butterworth 필터 없음**(v1은 모델과 일치하므로 의도된 상태). 단위 g·rad/s 원단위 그대로. scaler는 `gait_scaler.json`. v2에서 위 '재학습 계약'대로 GSVM·필터 추가.
+- **1차**: `motionLevel`(acc std<0.025g, gyro avg<0.04rad/s → `{stationary, accStd, gyroAvg}`) 휴리스틱 게이트 → 움직이면 **huga+93 활동분류**(`gait_stage1_activity.tflite`, 6-class, g단위)로 walking 판정. `useGaitPipeline`: 정지→STATIONARY, 1차가 walking→2차 실행, sitting/standing(conf≥0.8)→STATIONARY, 그 외(running·계단)→OTHER(점수 없음). `analyze(window, filteredWindow)`는 시연 표시용으로 `{accStd, gyroAvg, ms1, ms2}`(게이트 실측치·단계별 추론 지연)도 함께 반환한다.
+- **2차**: `gait_model.tflite` = 정완 TCN v2(ASVM/GSVM, LOSO 83.75%). 단일 윈도우 신뢰 말고 세션 단위 집계 + P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정. 출력이 시그모이드 단일값이라 `softmaxArgmax` 대신 `out2[0]`을 그대로 P(이상)으로 읽는다.
+- **전처리**: 1차 피처는 `acc_x,y,z, gyro_x,y,z, acc_x_dyn,y_dyn,z_dyn, acc_norm`(불변). 2차는 `ASVM=√(ax²+ay²+az²)`·`GSVM=√(gx²+gy²+gz²)`를 **causal 4차 3Hz Butterworth**(`gaitPreprocess.js`의 `createGaitFilter`, biquad cascade — NEVO-DataCollector `svm-filter.js`와 동일 스펙이지만 filtfilt 대신 forward 1회)로 거른 값. ⚠️ 이 필터는 **세션당 하나만 만들어 매 샘플(50Hz)마다 push**해야 한다 — 윈도우마다 새로 만들면 워밍업 트랜지언트가 반복돼 학습 분포와 어긋난다. `ElderMeasure.jsx`의 `gaitFilterRef`+`stage2BufRef`가 raw 버퍼(`bufRef`)와 같은 박자로 필터링된 값을 쌓고 `analyze(win, win2)`로 함께 넘긴다. 윈도우 크기도 1차(`WINDOW_SIZE`=100)·2차(`STAGE2_WINDOW_SIZE`=128)가 다르다. scaler는 각각 `gait_stage1_scaler.json`/`gait_scaler.json`.
 - **특징**: 윈도우 cadence(`estimateCadence`, 세션 평균용) + 스트리밍 걸음 기반 `recentCadence`(최근 10초 간격 → 화면 표시용, 안 튐) + `computeGaitMetrics`(회전 제외 직진 걸음의 변동성 CV·좌우대칭성) + 이동거리(걸음×보폭). 세션 종료 시 백엔드로 업로드되어 리포트·보호자 화면에 반영된다(아래 세션 분석 계약 참고).
 - **지표 표기 통일**: 좌우 대칭·변동성은 앱 전체에서 라벨 `좌우 대칭`/`변동성`, 단위 `%`. `computeGaitMetrics`는 8보(직진) 미만이면 `null`을 반환하므로 짧은 측정은 `--`로 표시된다.
 
@@ -112,7 +114,7 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - 표시 상수는 `gaitPreprocess`(`STATIONARY_ACC_STD/GYRO_AVG`)·`useGaitPipeline`(`EWMA_ALPHA`, `SUSPECT_ON/OFF`)에서 import — 화면 하드코딩 금지
 - ⚠️ **보조 지표(리듬·CV·대칭)는 점수의 입력이 아니다.** 점수는 2차 모델이 파형에서 직접 판정한 P(이상)에서 나온다. 화면 문구도 "함께 관찰된 보행 특성"으로 고정 — 근거처럼 표현하지 말 것.
 - 시연 타이밍 제약: EWMA 시드가 0(=100점)이라 **걷기 시작 직후는 항상 80점대**, SUSPECTED 전환에 이상 보행 **6~7초(5윈도우) 이상** 필요. 저신뢰 경고를 피하려면 걷기 **20초 이상**(`MIN_WALK_WINDOWS`=12).
-- **모델 입력**: `(1,100,10)`. **fast-tflite v3**: `loadTensorflowModel(src, [])` — delegates(빈 배열=CPU) **필수 인자**. `runSync` 입출력은 ArrayBuffer → 입력 `.buffer`, 출력 `new Float32Array(out[0])`.
+- **모델 입력**: 1차 `(1,100,10)`, 2차 `(1,128,2)`=[ASVM,GSVM]. **fast-tflite v3**: `loadTensorflowModel(src, [])` — delegates(빈 배열=CPU) **필수 인자**. `runSync` 입출력은 ArrayBuffer → 입력 `.buffer`, 출력 `new Float32Array(out[0])`.
 - **출력 매핑**: `score=(1-P이상)×100`, `riskLevel=P이상≥0.5?SUSPECTED:NORMAL`. 반환 형태는 세션 업로드 계약과 동일.
 - **파일**: 1차 `gait_stage1_activity.tflite`+`gait_stage1_scaler.json`, 2차 `gait_model.tflite`+`gait_scaler.json` (`.tflite`는 `metro.config.js`에서 assetExts 등록). 모델 교체 시 `assets/models/` 파일만 교체, 전처리/단위가 바뀌면 `gaitPreprocess.js`(`buildStage1Input`/`buildStage2Input`) 수정.
 
@@ -146,7 +148,6 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 ## 열린 작업
 완료 내역은 git 히스토리에 있다. 여기엔 **아직 안 된 것 + 그것이 코드 판단에 주는 제약**만 적는다.
 
-- ★ **(정완) 2차 ASVM/GSVM+Butterworth 재학습** — 도착 전까지 프론트 전처리에 필터·피처를 **먼저 덧붙이지 말 것**(학습 분포 불일치). 도착 시 위 '재학습 계약'대로 미러링 후 스왑(v2)
 - ★ **`CareLocation` 오늘 동선** — 프론트는 `getLocationHistory` + `NaverMapPathOverlay`까지 붙어 있고 **백엔드 대기 중**. `locations`가 `ward_id` 유니크 upsert라 이력이 없어 현재는 빈 동선. 필요 스펙: ① insert-only 이력 테이블(기존 upsert 테이블은 SSE용 유지) ② `GET /api/locations/{wardId}/history?date=YYYY-MM-DD`(GUARDIAN). **엔드포인트 생기면 즉시 동작하므로 프론트 코드를 지우지 말 것**
 - ★ **네이티브 모듈 추가 후 EAS dev build 필요** — 네이버 지도·FCM은 기존 빌드로 동작 안 함
 - ★ **실기기 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 `pRaw`를 0.5 위로 올리는 것 확정

@@ -8,10 +8,11 @@ import T from '../../tokens';
 import Icon from '../../icons';
 import Card from '../../components/Card';
 import Pill from '../../components/Pill';
+import Button from '../../components/Button';
 import SparkLine from '../../components/SparkLine';
 import DemoMonitor from '../../components/DemoMonitor';
 import { useGaitPipeline } from '../../ml/useGaitPipeline';
-import { createStepCounter, createTurnDetector, computeGaitMetrics, recentCadence } from '../../ml/gaitPreprocess';
+import { createStepCounter, createTurnDetector, createGaitFilter, computeGaitMetrics } from '../../ml/gaitPreprocess';
 import { sessionStore } from '../../store/sessionStore';
 import { tokenStore } from '../../store/tokenStore';
 import { ensureSession, uploadData, stopSession, uploadAnalysis, toMinuteAt } from '../../api/session';
@@ -42,6 +43,7 @@ export default function ElderMeasure() {
   const insets = useSafeAreaInsets();
 
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
+  const stage2BufRef = useRef([]);    // [[asvmFiltered,gsvmFiltered], ...] — bufRef와 같은 박자로 쌓임
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
   const sinceRef = useRef(0);         // 마지막 전송 이후 쌓인 샘플 수
   const accRef = useRef({ rawP: [], cadences: [] });  // 세션 누적(걷기만): 원시 P(이상)·케이던스
@@ -51,6 +53,9 @@ export default function ElderMeasure() {
   if (!stepperRef.current) stepperRef.current = createStepCounter();
   const turnRef = useRef(null);
   if (!turnRef.current) turnRef.current = createTurnDetector();
+  // 2차 입력용 ASVM/GSVM causal 필터 — 세션 내내 상태 유지(윈도우마다 새로 만들면 안 됨).
+  const gaitFilterRef = useRef(null);
+  if (!gaitFilterRef.current) gaitFilterRef.current = createGaitFilter();
   const stepLenRef = useRef(0.70);
 
   // on-device 추론 파이프라인(1차 동작분류 → 2차 정상/이상). dev build에서만 모델 로드됨.
@@ -75,10 +80,8 @@ export default function ElderMeasure() {
   const [status, setStatus] = useState('센서 준비 중...');
   const [scoreHist, setScoreHist] = useState([]);  // 걷기 평활 점수 이력(라이브 그래프)
   const [rawHist, setRawHist] = useState([]);      // 걷기 원(raw) 점수 이력 — 모니터링 차트의 '흔들린 순간'용
-  const [trace, setTrace] = useState({ x: null, y: null, z: null });  // 실시간 3축 파형(시연 모드용)
   const [showMonitor, setShowMonitor] = useState(false);  // 시연 모드 오버레이
   const [elapsed, setElapsed] = useState(0);       // 측정 경과 시간(초)
-  const [cadenceLive, setCadenceLive] = useState(null);  // 최근 10초 걸음 간격 기반 리듬(spm)
   const [metrics, setMetrics] = useState(null);          // 라이브 {variability, symmetry} (직진 걸음 부족하면 null)
 
   // 측정 화면 진입 시 세션 확보(진행 중이면 복원, 없으면 시작). 실패해도 측정은 계속.
@@ -95,16 +98,42 @@ export default function ElderMeasure() {
     return () => { alive = false; };
   }, []);
 
+  const rateRef = useRef({ accN: 0, accT0: 0, gyroN: 0, gyroT0: 0 });  // [NEVO-DEBUG] 실측 샘플레이트 진단용
+
   useEffect(() => {
     Accelerometer.setUpdateInterval(HZ_MS);
     Gyroscope.setUpdateInterval(HZ_MS);
 
     const gSub = Gyroscope.addListener(({ x, y, z }) => {
       gyroRef.current = [x, y, z];
+      // [NEVO-DEBUG] 실제 자이로 수신 속도 측정 — 확인 끝나면 이 블록 삭제.
+      if (__DEV__) {
+        const r = rateRef.current;
+        const now = Date.now();
+        if (r.gyroT0 === 0) r.gyroT0 = now;
+        r.gyroN += 1;
+        if (r.gyroN >= 100) {
+          const hz = (r.gyroN / (now - r.gyroT0)) * 1000;
+          console.log('[NEVO-DEBUG-RATE] gyro actualHz=' + hz.toFixed(1));
+          r.gyroN = 0; r.gyroT0 = now;
+        }
+      }
     });
 
     const aSub = Accelerometer.addListener(({ x, y, z }) => {
       const [gx, gy, gz] = gyroRef.current;
+      // [NEVO-DEBUG] 실제 가속도 수신 속도 측정 — 확인 끝나면 이 블록 삭제.
+      if (__DEV__) {
+        const r = rateRef.current;
+        const now = Date.now();
+        if (r.accT0 === 0) r.accT0 = now;
+        r.accN += 1;
+        if (r.accN >= 100) {
+          const hz = (r.accN / (now - r.accT0)) * 1000;
+          console.log('[NEVO-DEBUG-RATE] acc actualHz=' + hz.toFixed(1));
+          r.accN = 0; r.accT0 = now;
+        }
+      }
       // 회전(방향 전환) 감지 → 걸음에 태깅(회전 걸음은 변동성·대칭성에서 제외)
       const turning = turnRef.current.push(x, y, z, gx, gy, gz);
       // 연속 걸음 검출(윈도우 분석과 무관하게 원시 스트림에서 카운트)
@@ -113,16 +142,23 @@ export default function ElderMeasure() {
       const buf = bufRef.current;
       buf.push([x, y, z, gx, gy, gz]);
       if (buf.length > 256) buf.splice(0, buf.length - 256);  // 메모리 캡 (슬라이딩)
+
+      // 2차 입력(ASVM/GSVM)은 매 샘플 causal 필터를 거쳐야 하므로 raw 버퍼와 같은 박자로 쌓는다.
+      const stage2Buf = stage2BufRef.current;
+      stage2Buf.push(gaitFilterRef.current.push(x, y, z, gx, gy, gz));
+      if (stage2Buf.length > 256) stage2Buf.splice(0, stage2Buf.length - 256);
+
       sinceRef.current += 1;
 
       if (buf.length >= WINDOW && sinceRef.current >= STRIDE) {
         sinceRef.current = 0;
         const win = buf.slice(buf.length - WINDOW);
+        const win2 = stage2Buf.slice(stage2Buf.length - WINDOW);
         const run = analyzeRef.current;
         if (!run) { setStatus('모델 준비 중...'); return; }
 
         let r;
-        try { r = run(win); } catch { setStatus('분석 오류'); return; }
+        try { r = run(win, win2); } catch { setStatus('분석 오류'); return; }
         if (!r) { setStatus('모델 준비 중...'); return; }
 
         if (r.activityState === 'WALKING' && r.score != null) {
@@ -159,15 +195,7 @@ export default function ElderMeasure() {
       }
     });
 
-    // 파형은 점수계산과 별개로 ~150ms마다 갱신 (50Hz 리렌더는 과부하) — 시연 모드 전용.
-    const traceTimer = setInterval(() => {
-      const buf = bufRef.current;
-      if (buf.length < 8) return;
-      const seg = buf.slice(Math.max(0, buf.length - 80));
-      setTrace({ x: seg.map((s) => s[0]), y: seg.map((s) => s[1]), z: seg.map((s) => s[2]) });
-    }, 150);
-
-    return () => { aSub.remove(); gSub.remove(); clearInterval(traceTimer); };
+    return () => { aSub.remove(); gSub.remove(); };
   }, []);
 
   // 측정 경과 시간 + 라이브 보행 지표 (1초마다). 지표는 순수 함수 계산이라 비용 무시 가능.
@@ -175,7 +203,6 @@ export default function ElderMeasure() {
     const t = setInterval(() => {
       setElapsed((e) => e + 1);
       const st = stepperRef.current.steps;
-      setCadenceLive(recentCadence(st, Date.now()));
       setMetrics(computeGaitMetrics(st));
     }, 1000);
     return () => clearInterval(t);
@@ -359,14 +386,7 @@ export default function ElderMeasure() {
 
       {/* 측정 완료 — 크고 명확한 버튼, 하단 고정 */}
       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: T.sp.lg, paddingTop: T.sp.sm, paddingBottom: Math.max(insets.bottom, T.sp.lg), backgroundColor: T.bg }}>
-        <Pressable
-          onPress={finish}
-          style={({ pressed }) => ({
-            height: 60, borderRadius: T.radius.md, backgroundColor: pressed ? T.blueDark : T.blue,
-            alignItems: 'center', justifyContent: 'center',
-          })}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>측정 완료</Text>
-        </Pressable>
+        <Button onPress={finish}>측정 완료</Button>
       </View>
 
       {/* 시연 모드 — 화면 녹화용 고밀도 진단 패널(스크롤 없이 한 화면, 측정 완료까지 여기서).
@@ -378,8 +398,6 @@ export default function ElderMeasure() {
         onFinish={finish}
         live={{
           mmss,
-          walkWindows: accRef.current.rawP.length,
-          minWindows: MIN_WALK_WINDOWS,
           result,
           score,
           riskLevel: shownRisk,
@@ -388,10 +406,6 @@ export default function ElderMeasure() {
           chartData,
           avgScore: avgScoreLive,
           minScore: minScoreLive,
-          trace,
-          steps,
-          distanceM,
-          cadenceLive,
           metrics,
         }}
       />
