@@ -21,6 +21,7 @@ const CARE_TABS = [
 ];
 
 const TONE_RANK = { danger: 0, caution: 1, ok: 2 };
+const TONE_BORDER = { danger: T.danger, caution: T.caution, ok: T.ok };
 const NEUTRAL_AVATAR = [T.line, T.body];
 const DANGER_AVATAR = [T.dangerSoft, T.danger];
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
@@ -126,7 +127,7 @@ export default function CareDashboard() {
               const danger = w.tone === 'danger';
               return (
                 <Pressable key={w.wardId} onPress={() => router.push({ pathname: '/(caregiver)/patient-detail', params: { wardId: String(w.wardId), name: w.name } })}>
-                  <Card pad={T.sp.xl} style={danger ? { borderLeftWidth: 3, borderLeftColor: T.danger } : null}>
+                  <Card pad={T.sp.xl} style={{ borderLeftWidth: 3, borderLeftColor: TONE_BORDER[w.tone] }}>
                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
                         <Avatar name={w.name} size={40} tone={danger ? DANGER_AVATAR : NEUTRAL_AVATAR}/>

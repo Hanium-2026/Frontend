@@ -1,58 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import TextInput from '../../components/TextInput';
+import { View, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import AppHeader from '../../components/AppHeader';
+import FormField from '../../components/FormField';
+import SelectableCard from '../../components/SelectableCard';
+import Button from '../../components/Button';
 import { getPhysicalInfo, updatePhysicalInfo } from '../../api/ward';
 import { ApiError } from '../../api/client';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function NumberField({ label, value, onChangeText, unit }) {
-  return (
-    <View>
-      <Text style={{ fontSize: T.fs.caption, color: T.muted }}>{label}</Text>
-      <View style={{
-        height: 60, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.line,
-        backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.sm,
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType="decimal-pad"
-          style={{ flex: 1, fontSize: T.fs.h, color: T.ink }}
-        />
-        <Text style={{ fontSize: T.fs.body, color: T.muted }}>{unit}</Text>
-      </View>
-    </View>
-  );
-}
-
-// 확정 디자인엔 없지만 생년월일은 백엔드 신체정보 필수값이라 폼에서 뺄 수 없다(키·몸무게·성별만 그린 목업의 누락으로 판단).
-function DateField({ value, onChangeText }) {
-  return (
-    <View>
-      <Text style={{ fontSize: T.fs.caption, color: T.muted }}>생년월일</Text>
-      <View style={{
-        height: 60, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.line,
-        backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.sm,
-        justifyContent: 'center',
-      }}>
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType="numbers-and-punctuation"
-          placeholder="1950-01-01"
-          placeholderTextColor={T.muted}
-          style={{ fontSize: T.fs.h, color: T.ink }}
-        />
-      </View>
-    </View>
-  );
-}
 
 export default function ElderProfileEdit() {
   const router = useRouter();
@@ -113,37 +71,30 @@ export default function ElderProfileEdit() {
           <View style={{ paddingTop: 80, alignItems: 'center' }}><ActivityIndicator color={T.blue}/></View>
         ) : (
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.md, paddingBottom: 120, gap: T.sp.xl }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            <NumberField label="키" value={form.height} onChangeText={(v) => setField('height', v.replace(/[^0-9.]/g, ''))} unit="cm"/>
-            <NumberField label="몸무게" value={form.weight} onChangeText={(v) => setField('weight', v.replace(/[^0-9.]/g, ''))} unit="kg"/>
-            <DateField value={form.birthDate} onChangeText={(v) => setField('birthDate', v.replace(/[^0-9-]/g, '').slice(0, 10))}/>
+            <FormField label="키" unit="cm" value={form.height} onChangeText={(v) => setField('height', v.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad"/>
+            <FormField label="몸무게" unit="kg" value={form.weight} onChangeText={(v) => setField('weight', v.replace(/[^0-9.]/g, ''))} keyboardType="decimal-pad"/>
+            {/* 확정 디자인엔 없지만 생년월일은 백엔드 신체정보 필수값이라 폼에서 뺄 수 없다(키·몸무게·성별만 그린 목업의 누락으로 판단). */}
+            <FormField
+              label="생년월일"
+              value={form.birthDate}
+              onChangeText={(v) => setField('birthDate', v.replace(/[^0-9-]/g, '').slice(0, 10))}
+              keyboardType="numbers-and-punctuation"
+              placeholder="1950-01-01"
+            />
 
             <View>
               <Text style={{ fontSize: T.fs.caption, color: T.muted }}>성별</Text>
               <View style={{ flexDirection: 'row', gap: T.sp.md, marginTop: T.sp.sm }}>
-                {[['FEMALE', '여성'], ['MALE', '남성']].map(([value, label]) => {
-                  const on = form.gender === value;
-                  return (
-                    <Pressable
-                      key={value}
-                      onPress={() => setField('gender', value)}
-                      style={{
-                        flex: 1, height: 60, borderRadius: T.radius.md, backgroundColor: T.surface,
-                        borderWidth: on ? 2 : 1, borderColor: on ? T.blue : T.line,
-                        alignItems: 'center', justifyContent: 'center',
-                      }}>
-                      <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: on ? T.blue : T.muted }}>{label}</Text>
-                    </Pressable>
-                  );
-                })}
+                {[['FEMALE', '여성'], ['MALE', '남성']].map(([value, label]) => (
+                  <SelectableCard key={value} title={label} selected={form.gender === value} onPress={() => setField('gender', value)}/>
+                ))}
               </View>
             </View>
           </ScrollView>
         )}
 
         <View style={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.sm, paddingBottom: T.sp.xl, backgroundColor: T.bg }}>
-          <Pressable onPress={save} disabled={saving || loading} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: saving || loading ? T.line : T.blue, alignItems: 'center', justifyContent: 'center' }}>
-            {saving ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>저장</Text>}
-          </Pressable>
+          <Button onPress={save} disabled={loading} loading={saving}>저장</Button>
         </View>
       </View>
     </KeyboardAvoidingView>

@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { View, ScrollView, ActivityIndicator, Pressable, Share } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Share } from 'react-native';
 import Text from '../components/Text';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import T from '../tokens';
 import Icon from '../icons';
 import AppHeader from '../components/AppHeader';
 import Card from '../components/Card';
 import Pill from '../components/Pill';
 import RangeBar from '../components/RangeBar';
+import Button from '../components/Button';
 import { getSessionReport } from '../api/reports';
 import { sessionStore } from '../store/sessionStore';
 import { riskTone, RISK_LABEL } from '../risk';
@@ -54,6 +55,7 @@ function fmtWhen(v) {
 }
 
 export default function SessionDetail() {
+  const router = useRouter();
   const { sessionId } = useLocalSearchParams();
   const local = !sessionId;
   const [loading, setLoading] = useState(!local);
@@ -151,11 +153,11 @@ export default function SessionDetail() {
                     <RangeBar min={data.minScore} max={data.maxScore} value={data.avgScore}/>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: T.sp.sm }}>
                       <Text style={{ fontSize: T.fs.body, color: T.muted }}>0</Text>
-                      <Text style={{ fontSize: T.fs.body, color: T.body }}>
-                        최저 {Math.round(data.minScore)} · 최고 {Math.round(data.maxScore)}
-                      </Text>
                       <Text style={{ fontSize: T.fs.body, color: T.muted }}>100</Text>
                     </View>
+                    <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: T.sp.xs, textAlign: 'center' }}>
+                      최저 {Math.round(data.minScore)} · 최고 {Math.round(data.maxScore)}
+                    </Text>
                   </View>
                 )}
               </Card>
@@ -179,15 +181,12 @@ export default function SessionDetail() {
             </View>
           </ScrollView>
 
-          <View style={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.sm, paddingBottom: T.sp.xl, backgroundColor: T.bg }}>
-            <Pressable
-              onPress={onShare}
-              style={({ pressed }) => ({
-                height: 60, borderRadius: T.radius.md, backgroundColor: pressed ? T.blueDark : T.blue,
-                alignItems: 'center', justifyContent: 'center',
-              })}>
-              <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>결과 공유하기</Text>
-            </Pressable>
+          <View style={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.sm, paddingBottom: T.sp.xl, backgroundColor: T.bg, gap: T.sp.sm }}>
+            <Button onPress={onShare}>결과 공유하기</Button>
+            {/* 측정 직후(local)에만 — 뒤로가기가 방금 끝난 측정 화면으로 돌아가 막다른 길처럼 느껴지는 문제 보완 */}
+            {local && (
+              <Button variant="outline" onPress={() => router.replace('/(elder)/')}>홈으로 가기</Button>
+            )}
           </View>
         </>
       )}

@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
-import Svg, { Path, Line, Circle, Rect } from 'react-native-svg';
+import { View, Animated } from 'react-native';
+import Svg, { Path, Line } from 'react-native-svg';
 import T from '../tokens';
+import { smoothPathD, useChartReveal } from './chartPath';
 
-// 시연 신뢰 차트 — "평균이 얼마고 언제 흔들렸나"를 화면 공유로 보여주기 위한 차트.
-//  · 평활선(파랑) = 전체 추세    · raw 점 = 매 윈도우 원점수(흔들린 순간이 튀는 점)
-//  · 평균선(점선) · 70 기준선   · 위험도 배경 밴드(안정/주의/위험)
+// 시연 신뢰 차트 — Figma trend-card(node 101:177)와 동일한 구성.
+//  · 평활선(파랑) = 전체 추세    · raw선(회색) = 매 윈도우 원점수(흔들린 순간이 튀는 선)
+//  · 평균선(회색 점선) 하나만 — 위험도 배경 밴드·색상 구분은 이 차트엔 없다(Figma 원본 기준)
 // data: [{ raw, smooth }] (0~100). 부모가 폭을 측정해 반응형으로 그린다.
-export default function TrustChart({ data, avg, height = 200, threshold = 70 }) {
+const REF_GRAY = '#B8C2CC'; // Figma trend-card 원본 색 — 톤 팔레트(T.ok/caution/danger)와 무관한 중립 회색이라 토큰화하지 않음
+
+export default function TrustChart({ data, avg, height = 200 }) {
   const [w, setW] = useState(0);
+  const reveal = useChartReveal(w);
   const PADL = 6, PADR = 6, PADT = 8, PADB = 8;
   const plotW = Math.max(0, w - PADL - PADR);
   const plotH = height - PADT - PADB;
@@ -18,29 +22,21 @@ export default function TrustChart({ data, avg, height = 200, threshold = 70 }) 
 
   let content = null;
   if (n >= 2 && w > 0) {
-    const pts = data.map((d, i) => [x(i), y(d.smooth)]);
-    const sd = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-    const yOk = y(threshold), yCau = y(50), yBot = PADT + plotH;
+    const rd = smoothPathD(data.map((d, i) => [x(i), y(d.raw)]));
+    const sd = smoothPathD(data.map((d, i) => [x(i), y(d.smooth)]));
     content = (
-      <Svg width={w} height={height}>
-        {/* 위험도 배경 밴드 */}
-        <Rect x={PADL} y={PADT}  width={plotW} height={yOk - PADT}  fill={T.ok}     opacity={0.06}/>
-        <Rect x={PADL} y={yOk}   width={plotW} height={yCau - yOk}  fill={T.caution} opacity={0.08}/>
-        <Rect x={PADL} y={yCau}  width={plotW} height={yBot - yCau} fill={T.danger}  opacity={0.08}/>
-        {/* 70 기준선 */}
-        <Line x1={PADL} y1={yOk} x2={PADL + plotW} y2={yOk} stroke={T.ok} strokeWidth={1} strokeDasharray="5 4" opacity={0.7}/>
-        {/* 평균선 */}
-        {avg != null && (
-          <Line x1={PADL} y1={y(avg)} x2={PADL + plotW} y2={y(avg)} stroke={T.blue} strokeWidth={1.5} strokeDasharray="2 3" opacity={0.85}/>
-        )}
-        {/* 평활 추세선 */}
-        <Path d={sd} fill="none" stroke={T.blue} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-        {/* raw 점 — 흔들린 순간이 색/높이로 드러남 */}
-        {data.map((d, i) => {
-          const c = d.raw >= threshold ? T.ok : d.raw >= 50 ? T.caution : T.danger;
-          return <Circle key={i} cx={x(i)} cy={y(d.raw)} r={2.6} fill={c} opacity={0.85}/>;
-        })}
-      </Svg>
+      <Animated.View style={{ width: reveal.interpolate({ inputRange: [0, 1], outputRange: [0, w] }), height, overflow: 'hidden' }}>
+        <Svg width={w} height={height}>
+          {/* 평균선 */}
+          {avg != null && (
+            <Line x1={PADL} y1={y(avg)} x2={PADL + plotW} y2={y(avg)} stroke={REF_GRAY} strokeWidth={1} strokeDasharray="4 4"/>
+          )}
+          {/* raw 추세선 — 매 윈도우 원점수 */}
+          <Path d={rd} fill="none" stroke={REF_GRAY} strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"/>
+          {/* 평활 추세선 */}
+          <Path d={sd} fill="none" stroke={T.blue} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+        </Svg>
+      </Animated.View>
     );
   }
   return (

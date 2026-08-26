@@ -13,7 +13,7 @@ export default function AppHeader({ title, sub, right, onBack }) {
     <View style={{ paddingTop: insets.top + 12, paddingBottom: 12, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
       {onBack && (
         <Pressable onPress={() => router.back()} style={{
-          width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff',
+          width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface,
           borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center',
           marginTop: 2,
         }}>
@@ -21,7 +21,7 @@ export default function AppHeader({ title, sub, right, onBack }) {
         </Pressable>
       )}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, lineHeight: 30 }}>{title}</Text>
+        <Text style={{ fontSize: T.fs.title, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6, lineHeight: 30 }}>{title}</Text>
         {sub && <Text style={{ fontSize: T.fs.label, fontFamily: T.font, color: T.body, marginTop: 3 }}>{sub}</Text>}
       </View>
       {right}

@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { View, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { View, ScrollView, useWindowDimensions } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Card from '../../components/Card';
+import Button from '../../components/Button';
 
 // 최초 1회 온보딩. 3장 모두 같은 구조(일러스트+제목+설명) — 앱 소개 · 상시 측정 안내 · 기기 내 분석.
 const PAGES = [
@@ -62,11 +63,7 @@ export default function ElderOnboarding() {
             <View key={p.title} style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: i === page ? T.ink : T.line }}/>
           ))}
         </View>
-        <Pressable onPress={handleNext} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>
-            {page < PAGES.length - 1 ? '다음' : '시작하기'}
-          </Text>
-        </Pressable>
+        <Button onPress={handleNext}>{page < PAGES.length - 1 ? '다음' : '시작하기'}</Button>
       </View>
     </View>
   );

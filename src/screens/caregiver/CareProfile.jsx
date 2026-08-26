@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Pressable, ScrollView, Alert, Modal, ActivityIndicator } from 'react-native';
+import { View, Pressable, ScrollView, Alert, Modal } from 'react-native';
 import Text from '../../components/Text';
-import TextInput from '../../components/TextInput';
 import { useRouter } from 'expo-router';
 import T from '../../tokens';
 import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
+import ListRow from '../../components/ListRow';
+import Button from '../../components/Button';
+import FormField from '../../components/FormField';
 import { getMe, updateMe, deleteAccount } from '../../api/user';
 import { logout } from '../../api/auth';
 import { ApiError } from '../../api/client';
@@ -103,25 +105,14 @@ export default function CareProfile() {
             </Pressable>
           </Card>
 
-          <Card pad={0}>
-            {MENU_ITEMS.map(([label, path], i) => (
-              <Pressable key={label} onPress={() => router.push(path)} style={{
-                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                minHeight: 56, paddingHorizontal: T.sp.xl,
-                borderBottomWidth: i < MENU_ITEMS.length - 1 ? 1 : 0, borderBottomColor: T.line,
-              }}>
-                <Text style={{ fontSize: T.fs.body, color: T.ink }}>{label}</Text>
-                <Text style={{ fontSize: T.fs.body, color: T.muted }}>→</Text>
-              </Pressable>
+          <Card pad={0} style={{ paddingHorizontal: T.sp.xl }}>
+            {MENU_ITEMS.map(([label, path]) => (
+              <ListRow key={label} label={label} value="→" onPress={() => router.push(path)}/>
             ))}
-            <Pressable onPress={handleLogout} style={{ minHeight: 56, paddingHorizontal: T.sp.xl, justifyContent: 'center', borderTopWidth: 1, borderTopColor: T.line }}>
-              <Text style={{ fontSize: T.fs.body, color: T.muted }}>로그아웃</Text>
-            </Pressable>
+            <ListRow label="로그아웃" value="" onPress={handleLogout} last/>
           </Card>
 
-          <Pressable onPress={handleDeleteAccount} style={{ alignItems: 'center', paddingVertical: T.sp.sm }}>
-            <Text style={{ fontSize: T.fs.caption, color: T.muted, textDecorationLine: 'underline' }}>회원 탈퇴</Text>
-          </Pressable>
+          <Button variant="text" onPress={handleDeleteAccount} style={{ alignSelf: 'center' }}>회원 탈퇴</Button>
         </View>
       </ScrollView>
 
@@ -132,22 +123,17 @@ export default function CareProfile() {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', paddingHorizontal: T.sp.xl }}>
           <View style={{ backgroundColor: T.surface, borderRadius: 20, padding: T.sp.xl }}>
             <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>이름 수정</Text>
-            <TextInput
-              style={{ marginTop: T.sp.md, backgroundColor: T.bg, borderRadius: T.radius.md, paddingHorizontal: T.sp.md, paddingVertical: T.sp.md, fontSize: T.fs.body, color: T.ink, borderWidth: 1, borderColor: T.line }}
+            <FormField
+              style={{ marginTop: T.sp.md }}
               value={draft}
               onChangeText={setDraft}
               placeholder="이름"
-              placeholderTextColor={T.muted}
               maxLength={20}
               autoFocus
             />
             <View style={{ flexDirection: 'row', gap: T.sp.sm, marginTop: T.sp.lg }}>
-              <Pressable onPress={() => setEditing(false)} style={{ flex: 1, paddingVertical: T.sp.md, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.line, alignItems: 'center' }}>
-                <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.body }}>취소</Text>
-              </Pressable>
-              <Pressable onPress={handleSaveName} disabled={!draft.trim() || saving} style={{ flex: 1, paddingVertical: T.sp.md, borderRadius: T.radius.md, backgroundColor: draft.trim() ? T.blue : T.line, alignItems: 'center' }}>
-                {saving ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>저장</Text>}
-              </Pressable>
+              <Button variant="outline" onPress={() => setEditing(false)} style={{ flex: 1 }}>취소</Button>
+              <Button onPress={handleSaveName} disabled={!draft.trim()} loading={saving} style={{ flex: 1 }}>저장</Button>
             </View>
           </View>
         </View>

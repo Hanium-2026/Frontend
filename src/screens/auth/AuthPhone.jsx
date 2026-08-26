@@ -1,23 +1,16 @@
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Pressable, ScrollView, Alert } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
-import Icon from '../../icons';
+import Button from '../../components/Button';
+import StepHeader from '../../components/StepHeader';
 import { authStore } from '../../store/authStore';
 import { sendSms } from '../../api/auth';
 import { ApiError } from '../../api/client';
 
 const PHONE_RE = /^01[016789]\d{7,8}$/;
-
-function ProgressBar({ ratio }) {
-  return (
-    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.line }}>
-      <View style={{ width: `${ratio * 100}%`, height: 6, borderRadius: 3, backgroundColor: T.ink }}/>
-    </View>
-  );
-}
 
 const fmt = (d) => {
   const p = d.padEnd(11, '_');
@@ -56,12 +49,7 @@ export default function AuthPhone() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
-        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon.arrowLeft width={18} height={18} color={T.ink}/>
-        </Pressable>
-        <ProgressBar ratio={1 / 5}/>
-      </View>
+      <StepHeader step={1} total={5}/>
 
       <View style={{ flex: 1, paddingHorizontal: T.sp.lg }}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: T.sp.xl }}>
@@ -88,9 +76,7 @@ export default function AuthPhone() {
       </View>
 
       <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
-        <Pressable onPress={handleNext} disabled={busy} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center', opacity: busy ? 0.7 : 1 }}>
-          {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>인증번호 받기</Text>}
-        </Pressable>
+        <Button onPress={handleNext} loading={busy}>인증번호 받기</Button>
       </View>
     </View>
   );

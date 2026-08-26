@@ -1,21 +1,13 @@
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, Pressable } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
 import Avatar from '../../components/Avatar';
-
-function StepBar({ step, total = 6 }) {
-  return (
-    <View style={{ flexDirection: 'row', gap: 6, flex: 1 }}>
-      {Array.from({ length: total }).map((_, i) => (
-        <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i < step ? T.blue : T.line }}/>
-      ))}
-    </View>
-  );
-}
+import Button from '../../components/Button';
+import StepHeader from '../../components/StepHeader';
 
 export default function AuthConnect() {
   const router = useRouter();
@@ -31,17 +23,12 @@ export default function AuthConnect() {
   const boxes = Array.from({ length: 4 }, (_, i) => code[i] || '');
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.bg, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon.arrowLeft width={18} height={18} color={T.ink}/>
-        </Pressable>
-        <StepBar step={6}/>
-      </View>
+    <View style={{ flex: 1, backgroundColor: T.bg }}>
+      <StepHeader step={6} total={6}/>
 
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 24 }}>
-        <Text style={{ fontSize: 26, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: 32 }}>가족과{'\n'}연결해볼까요?</Text>
-        <Text style={{ fontSize: 13.5, color: T.muted, marginTop: 10, lineHeight: 22 }}>보호자 앱에서 발급받은 4자리 코드를 입력해주세요</Text>
+        <Text style={{ fontSize: T.fs.title, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.7, lineHeight: T.fs.title * 1.25 }}>가족과{'\n'}연결해볼까요?</Text>
+        <Text style={{ fontSize: T.fs.caption, color: T.muted, marginTop: 10, lineHeight: 22 }}>보호자 앱에서 발급받은 4자리 코드를 입력해주세요</Text>
 
         <View style={{ marginTop: 32, flexDirection: 'row', gap: 10, justifyContent: 'center' }}>
           {boxes.map((d, i) => {
@@ -63,12 +50,12 @@ export default function AuthConnect() {
 
         {isComplete && (
           <View style={{ marginTop: 24 }}>
-            <Text style={{ fontSize: 11, color: T.muted, fontFamily: T.fontBold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.4 }}>이 사람과 연결됩니다</Text>
-            <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: T.line, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Text style={{ fontSize: T.fs.caption, color: T.muted, fontFamily: T.fontBold, marginBottom: 10, textAlign: 'center', letterSpacing: 0.4 }}>이 사람과 연결됩니다</Text>
+            <View style={{ backgroundColor: T.surface, borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: T.line, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <Avatar name="민지" size={48}/>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 15, fontFamily: T.fontBold, color: T.ink }}>이민지</Text>
-                <Text style={{ fontSize: 12, color: T.muted, marginTop: 1 }}>딸 · 010-9876-5432</Text>
+                <Text style={{ fontSize: T.fs.caption, fontFamily: T.fontBold, color: T.ink }}>이민지</Text>
+                <Text style={{ fontSize: T.fs.caption, color: T.muted, marginTop: 1 }}>딸 · 010-9876-5432</Text>
               </View>
               <Icon.check width={22} height={22} color={T.ok}/>
             </View>
@@ -81,7 +68,7 @@ export default function AuthConnect() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingTop: 16 }}>
             {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => (
               <Pressable key={i} onPress={() => k && handleKey(k)} disabled={!k}
-                style={{ width: '33.33%', height: 52, borderRadius: 10, backgroundColor: k ? '#fff' : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+                style={{ width: '33.33%', height: 52, borderRadius: 10, backgroundColor: k ? T.surface : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 22, fontFamily: T.fontSemiBold, color: T.ink }}>{k}</Text>
               </Pressable>
             ))}
@@ -90,9 +77,7 @@ export default function AuthConnect() {
       </View>
 
       <View style={{ padding: 20, paddingBottom: Math.max(insets.bottom, 20), gap: 10 }}>
-        <Pressable onPress={() => router.push('/(auth)/welcome')} style={{ height: 58, borderRadius: 14, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 17, fontFamily: T.fontBold, color: '#fff' }}>{isComplete ? '연결하기' : '나중에 연결할게요'}</Text>
-        </Pressable>
+        <Button onPress={() => router.push('/(auth)/welcome')}>{isComplete ? '연결하기' : '나중에 연결할게요'}</Button>
       </View>
     </View>
   );

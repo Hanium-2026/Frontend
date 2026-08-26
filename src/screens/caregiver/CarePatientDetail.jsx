@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { View, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import Text from '../../components/Text';
-import Svg, { Line, Path } from 'react-native-svg';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import T from '../../tokens';
 import Card from '../../components/Card';
 import Pill from '../../components/Pill';
 import AppHeader from '../../components/AppHeader';
+import DailyTrend from '../../components/DailyTrend';
 import { getGuardianDailyReport } from '../../api/reports';
 import { disconnectWard } from '../../api/links';
 import { riskTone, RISK_LABEL } from '../../risk';
 import { ApiError } from '../../api/client';
 
 const round = (n) => (n == null ? 0 : Math.round(n));
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const PERIODS = [['7일', 7], ['30일', 30], ['90일', 90]];
 
 export default function CarePatientDetail() {
@@ -56,22 +55,16 @@ export default function CarePatientDetail() {
   // TodayMetrics엔 riskLevel이 없다(점수·범위만 옴) — 점수만으로 톤을 낸다.
   const tone = tm ? riskTone(tm.avgScore) : 'ok';
 
-  // 라인+범위 밴드 차트 좌표 (점수 40~100 → y). 일수가 많아도(90일) 요일 라벨은 찍지 않는다.
-  const W = 344, H = 110, PAD = 6;
+  const H = 110;
   const n = daily.length;
-  const xAt = (i) => (n <= 1 ? W / 2 : PAD + i * ((W - PAD * 2) / (n - 1)));
-  const yAt = (v) => H - PAD - (clamp(v, 40, 100) - 40) * ((H - PAD * 2) / 60);
-  const avgs = daily.map((d) => round(d.avgScore));
-  const linePath = avgs.length
-    ? avgs.map((v, i) => (i === 0 ? 'M' : 'L') + xAt(i).toFixed(1) + ' ' + yAt(v).toFixed(1)).join(' ')
-    : '';
-  const hasBand = n >= 2 && daily.every((d) => d.minScore != null && d.maxScore != null);
-  const bandPath = hasBand
-    ? daily.map((d, i) => (i === 0 ? 'M' : 'L') + xAt(i).toFixed(1) + ' ' + yAt(d.maxScore).toFixed(1)).join(' ')
-      + ' ' + [...daily].reverse().map((d, i) => 'L' + xAt(n - 1 - i).toFixed(1) + ' ' + yAt(d.minScore).toFixed(1)).join(' ') + ' Z'
-    : null;
-
   const fmtDate = (iso) => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}`; };
+  // DailyTrend는 점마다 라벨을 그리므로(30·90일이면 다 채우면 안 읽힘) 처음·끝만 날짜를 채운다.
+  const trendData = daily.map((d, i) => ({
+    label: (i === 0 || i === n - 1) ? fmtDate(d.date) : '',
+    avg: round(d.avgScore),
+    min: d.minScore,
+    max: d.maxScore,
+  }));
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
@@ -129,26 +122,16 @@ export default function CarePatientDetail() {
                     <Text style={{ fontSize: T.fs.body, color: T.muted }}>이 기간에 측정 기록이 없어요.</Text>
                   </View>
                 ) : (
-                  <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
-                    <Line x1={0} y1={yAt(70)} x2={W} y2={yAt(70)} stroke={T.caution} strokeWidth={1} opacity={0.35}/>
-                    {bandPath && <Path d={bandPath} fill={T.muted} opacity={0.2}/>}
-                    {linePath && <Path d={linePath} fill="none" stroke={T.body} strokeWidth={2} strokeLinejoin="round"/>}
-                  </Svg>
+                  <DailyTrend data={trendData} height={H} band color={T.body}/>
                 )}
               </View>
               {n > 0 && (
-                <>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: T.sp.xs }}>
-                    <Text style={{ fontSize: T.fs.caption, color: T.muted }}>{fmtDate(daily[0].date)}</Text>
-                    <Text style={{ fontSize: T.fs.caption, color: T.muted }}>{fmtDate(daily[n - 1].date)}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.sm, marginTop: T.sp.sm }}>
-                    <View style={{ width: 16, height: 10, borderRadius: 2, backgroundColor: T.line }}/>
-                    <Text style={{ flex: 1, fontSize: T.fs.caption, color: T.muted }}>
-                      띠는 그날의 최저~최고 — 평균이 떨어지기 전에 흔들림이 먼저 보인다
-                    </Text>
-                  </View>
-                </>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.sm, marginTop: T.sp.sm }}>
+                  <View style={{ width: 16, height: 10, borderRadius: 2, backgroundColor: T.line }}/>
+                  <Text style={{ flex: 1, fontSize: T.fs.caption, color: T.muted }}>
+                    띠는 그날의 최저~최고 — 평균이 떨어지기 전에 흔들림이 먼저 보인다
+                  </Text>
+                </View>
               )}
             </Card>
 

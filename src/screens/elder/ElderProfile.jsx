@@ -7,6 +7,8 @@ import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
+import ListRow from '../../components/ListRow';
+import Button from '../../components/Button';
 import { deleteAccount, getMe } from '../../api/user';
 import { getPhysicalInfo } from '../../api/ward';
 import { logout } from '../../api/auth';
@@ -88,41 +90,23 @@ export default function ElderProfile() {
             </Pressable>
           </Card>
 
-          <Card pad={0}>
+          <Card pad={0} style={{ paddingHorizontal: T.sp.xl }}>
             {infoRows.map(([label, value], i) => (
-              <View key={label} style={{
-                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                minHeight: 56, paddingHorizontal: T.sp.xl,
-                borderBottomWidth: i < infoRows.length - 1 ? 1 : 0, borderBottomColor: T.line,
-              }}>
-                <Text style={{ fontSize: T.fs.body, color: T.body }}>{label}</Text>
-                <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{value}</Text>
-              </View>
+              <ListRow key={label} label={label} value={value} last={i === infoRows.length - 1}/>
             ))}
           </Card>
 
-          <Card pad={0}>
+          <Card pad={0} style={{ paddingHorizontal: T.sp.xl }}>
             {MENU_ITEMS.map(([label, path], i) => (
-              <Pressable key={label} onPress={() => router.push(path)} style={{
-                flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                minHeight: 56, paddingHorizontal: T.sp.xl,
-                borderBottomWidth: i < MENU_ITEMS.length - 1 ? 1 : 0, borderBottomColor: T.line,
-              }}>
-                <Text style={{ fontSize: T.fs.body, color: T.ink }}>{label}</Text>
-                <Text style={{ fontSize: T.fs.body, color: T.muted }}>→</Text>
-              </Pressable>
+              <ListRow key={label} label={label} value="→" onPress={() => router.push(path)} last={i === MENU_ITEMS.length - 1}/>
             ))}
           </Card>
 
-          <Card pad={0}>
-            <Pressable onPress={handleLogout} style={{ minHeight: 56, paddingHorizontal: T.sp.xl, justifyContent: 'center' }}>
-              <Text style={{ fontSize: T.fs.body, color: T.muted }}>로그아웃</Text>
-            </Pressable>
+          <Card pad={0} style={{ paddingHorizontal: T.sp.xl }}>
+            <ListRow label="로그아웃" value="" onPress={handleLogout} last/>
           </Card>
 
-          <Pressable onPress={handleDeleteAccount} style={{ alignItems: 'center', paddingVertical: T.sp.sm }}>
-            <Text style={{ fontSize: T.fs.caption, color: T.muted, textDecorationLine: 'underline' }}>회원 탈퇴</Text>
-          </Pressable>
+          <Button variant="text" onPress={handleDeleteAccount} style={{ alignSelf: 'center' }}>회원 탈퇴</Button>
         </View>
       </ScrollView>
 

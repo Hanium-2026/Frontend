@@ -71,14 +71,16 @@ export default function ElderHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.xl, paddingBottom: T.sp.sm }}>
+      <View style={{
+        paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.xl, paddingBottom: T.sp.sm,
+      }}>
         <Text style={{ fontSize: T.fs.caption, color: T.muted }}>{todayLabel}</Text>
         <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, marginTop: 2 }}>
           {name ? `${name}님, 안녕하세요` : '반갑습니다'}
         </Text>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 200 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
         {/* 오늘 걸음 건강 점수 — 화면의 주인공. 색 운반체는 상태 칩 하나뿐. */}
         <View style={{ paddingHorizontal: T.sp.lg }}>
           <Card pad={T.sp.xl}>
@@ -103,11 +105,11 @@ export default function ElderHome() {
                 <RangeBar min={today.minScore} max={today.maxScore} value={todayScore}/>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: T.sp.sm }}>
                   <Text style={{ fontSize: T.fs.body, color: T.muted }}>0</Text>
-                  <Text style={{ fontSize: T.fs.body, color: T.body }}>
-                    보행 {today.sessionCount ?? '--'}번 · 최저 {Math.round(today.minScore)} · 최고 {Math.round(today.maxScore)}
-                  </Text>
                   <Text style={{ fontSize: T.fs.body, color: T.muted }}>100</Text>
                 </View>
+                <Text style={{ fontSize: T.fs.caption, color: T.body, marginTop: T.sp.xs }}>
+                  보행 {today.sessionCount ?? '--'}번 · 최저 {Math.round(today.minScore)} · 최고 {Math.round(today.maxScore)}
+                </Text>
               </View>
             )}
           </Card>
@@ -127,8 +129,11 @@ export default function ElderHome() {
                     data={days.map((d) => ({
                       label: d.label,
                       avg: d.row ? Math.round(d.row.avgScore) : null,
+                      min: d.row?.minScore,
+                      max: d.row?.maxScore,
                     }))}
                     height={104}
+                    band
                   />
                 </View>
               </Card>
@@ -171,19 +176,6 @@ export default function ElderHome() {
           </Pressable>
         </View>
       </ScrollView>
-
-      {/* 긴급 — 스크롤 밖에 고정한다(위급할 때 찾아 내려갈 수 없다). */}
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 64 + Math.max(insets.bottom, 10), paddingHorizontal: T.sp.lg, paddingVertical: T.sp.md, backgroundColor: T.bg }}>
-        <Pressable
-          onPress={() => router.push('/(elder)/sos')}
-          style={({ pressed }) => ({
-            height: 56, borderRadius: T.radius.md, borderWidth: 2, borderColor: T.danger,
-            backgroundColor: pressed ? T.dangerSoft : T.surface,
-            alignItems: 'center', justifyContent: 'center',
-          })}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.danger }}>긴급 도움 요청</Text>
-        </Pressable>
-      </View>
 
       <TabBar tabs={ELDER_TABS} active={0}/>
     </View>

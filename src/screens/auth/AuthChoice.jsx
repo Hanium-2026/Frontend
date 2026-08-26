@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import Icon from '../../icons';
+import Button from '../../components/Button';
 
 export default function AuthChoice() {
   const router = useRouter();
@@ -30,12 +31,10 @@ export default function AuthChoice() {
       </ScrollView>
 
       <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl), gap: T.sp.lg }}>
-        <Pressable onPress={() => router.push('/(auth)/role')} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>시작하기</Text>
-        </Pressable>
-        <Pressable onPress={() => router.push('/(auth)/login')} style={{ height: 56, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.body }}>이미 계정이 있어요</Text>
-        </Pressable>
+        <Button onPress={() => router.push('/(auth)/role')}>시작하기</Button>
+        <Button variant="text" onPress={() => router.push('/(auth)/login')} style={{ height: 56, alignItems: 'center', justifyContent: 'center' }}>
+          이미 계정이 있어요
+        </Button>
         <Text style={{ fontSize: T.fs.caption, color: T.muted, textAlign: 'center', lineHeight: T.fs.caption * 1.5 }}>
           시작하시면 이용약관과 개인정보 처리방침에{'\n'}동의하는 것으로 간주됩니다.
         </Text>

@@ -5,16 +5,11 @@ import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
-import Icon from '../../icons';
+import Button from '../../components/Button';
+import StepHeader from '../../components/StepHeader';
+import SelectableCard from '../../components/SelectableCard';
+import FormField from '../../components/FormField';
 import { authStore } from '../../store/authStore';
-
-function ProgressBar({ ratio }) {
-  return (
-    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.line }}>
-      <View style={{ width: `${ratio * 100}%`, height: 6, borderRadius: 3, backgroundColor: T.ink }}/>
-    </View>
-  );
-}
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -48,12 +43,7 @@ export default function AuthProfile() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={{ flex: 1, backgroundColor: T.bg }}>
-        <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
-          <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon.arrowLeft width={18} height={18} color={T.ink}/>
-          </Pressable>
-          <ProgressBar ratio={3 / 5}/>
-        </View>
+        <StepHeader step={3} total={5}/>
 
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: T.sp.lg, paddingTop: T.sp.xl }} keyboardShouldPersistTaps="handled">
           <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35 }}>이름을{'\n'}알려주세요</Text>
@@ -77,18 +67,9 @@ export default function AuthProfile() {
           <View style={{ marginTop: T.sp.xl }}>
             <Text style={{ fontSize: T.fs.caption, color: T.muted }}>성별</Text>
             <View style={{ flexDirection: 'row', gap: T.sp.md, marginTop: T.sp.sm }}>
-              {[['female', '여성'], ['male', '남성']].map(([value, label]) => {
-                const on = gender === value;
-                return (
-                  <Pressable key={value} onPress={() => setGender(value)} style={{
-                    flex: 1, height: 56, borderRadius: T.radius.md, backgroundColor: T.surface,
-                    borderWidth: on ? 2 : 1, borderColor: on ? T.blue : T.line,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: on ? T.blue : T.muted }}>{label}</Text>
-                  </Pressable>
-                );
-              })}
+              {[['female', '여성'], ['male', '남성']].map(([value, label]) => (
+                <SelectableCard key={value} title={label} selected={gender === value} onPress={() => setGender(value)}/>
+              ))}
             </View>
           </View>
 
@@ -113,34 +94,24 @@ export default function AuthProfile() {
           {isWard && (
             <View style={{ marginTop: T.sp.xl, flexDirection: 'row', gap: T.sp.md }}>
               {[['키', 'cm', height, setHeight, '160'], ['몸무게', 'kg', weight, setWeight, '58']].map(([label, unit, value, setter, placeholder]) => (
-                <View key={label} style={{ flex: 1 }}>
-                  <Text style={{ fontSize: T.fs.caption, color: T.muted }}>{label}</Text>
-                  <View style={{
-                    height: 60, borderRadius: T.radius.md, borderWidth: 1, borderColor: T.line,
-                    backgroundColor: T.surface, paddingHorizontal: T.sp.lg, marginTop: T.sp.sm,
-                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                  }}>
-                    <TextInput
-                      value={value}
-                      onChangeText={(t) => setter(t.replace(/[^0-9.]/g, ''))}
-                      placeholder={placeholder}
-                      placeholderTextColor={T.muted}
-                      keyboardType="decimal-pad"
-                      maxLength={5}
-                      style={{ flex: 1, fontSize: T.fs.h, color: T.ink }}
-                    />
-                    <Text style={{ fontSize: T.fs.body, color: T.muted }}>{unit}</Text>
-                  </View>
-                </View>
+                <FormField
+                  key={label}
+                  style={{ flex: 1 }}
+                  label={label}
+                  unit={unit}
+                  value={value}
+                  onChangeText={(t) => setter(t.replace(/[^0-9.]/g, ''))}
+                  placeholder={placeholder}
+                  keyboardType="decimal-pad"
+                  maxLength={5}
+                />
               ))}
             </View>
           )}
         </ScrollView>
 
         <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
-          <Pressable onPress={handleNext} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>다음</Text>
-          </Pressable>
+          <Button onPress={handleNext}>다음</Button>
         </View>
       </View>
     </KeyboardAvoidingView>

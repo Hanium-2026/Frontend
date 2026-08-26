@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { View, Animated } from 'react-native';
 import Svg, { Path, Line } from 'react-native-svg';
 import T from '../tokens';
+import { smoothPathD, useChartReveal } from './chartPath';
 
 // width 미지정 시 부모 폭을 측정해 꽉 차게 그린다(반응형). 지정 시 그 값 사용(하위호환).
 export default function IMUTrace({ width: widthProp, height = 80, color = T.blue, seed = 0, data = null }) {
@@ -11,6 +12,7 @@ export default function IMUTrace({ width: widthProp, height = 80, color = T.blue
     const w = e.nativeEvent.layout.width;
     if (w && Math.abs(w - measured) > 1) setMeasured(w);
   };
+  const reveal = useChartReveal(width);
 
   let content = null;
   if (width > 0) {
@@ -33,12 +35,14 @@ export default function IMUTrace({ width: widthProp, height = 80, color = T.blue
       }
     }
     const step = width / (pts.length - 1);
-    const d = pts.map((v, i) => (i === 0 ? 'M' : 'L') + (i * step).toFixed(1) + ' ' + (height / 2 + v * height * 0.4).toFixed(1)).join(' ');
+    const d = smoothPathD(pts.map((v, i) => [i * step, height / 2 + v * height * 0.4]));
     content = (
-      <Svg width={width} height={height}>
-        <Line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke={T.hair} strokeDasharray="2 3"/>
-        <Path d={d} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
-      </Svg>
+      <Animated.View style={{ width: reveal.interpolate({ inputRange: [0, 1], outputRange: [0, width] }), height, overflow: 'hidden' }}>
+        <Svg width={width} height={height}>
+          <Line x1={0} y1={height / 2} x2={width} y2={height / 2} stroke={T.hair} strokeDasharray="2 3"/>
+          <Path d={d} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+        </Svg>
+      </Animated.View>
     );
   }
 

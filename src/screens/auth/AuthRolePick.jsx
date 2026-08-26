@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
 import { authStore } from '../../store/authStore';
+import Button from '../../components/Button';
+import SelectableCard from '../../components/SelectableCard';
 
 const OPTIONS = [
   ['elder', '본인이 사용해요'],
@@ -31,23 +33,13 @@ export default function AuthRolePick() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: T.sp.lg, paddingTop: T.sp.xl, gap: T.sp.lg }}>
-        {OPTIONS.map(([value, label]) => {
-          const on = role === value;
-          return (
-            <Pressable key={value} onPress={() => setRole(value)} style={{
-              backgroundColor: T.surface, borderRadius: T.radius.md, padding: T.sp.xl,
-              borderWidth: on ? 2 : 1, borderColor: on ? T.blue : T.line,
-            }}>
-              <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{label}</Text>
-            </Pressable>
-          );
-        })}
+        {OPTIONS.map(([value, label]) => (
+          <SelectableCard key={value} title={label} selected={role === value} onPress={() => setRole(value)}/>
+        ))}
       </ScrollView>
 
       <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
-        <Pressable onPress={handleNext} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: T.blue, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>다음</Text>
-        </Pressable>
+        <Button onPress={handleNext}>다음</Button>
       </View>
     </View>
   );

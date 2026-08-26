@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { View, Animated } from 'react-native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import Text from './Text';
 import T from '../tokens';
+import { smoothPathD, useChartReveal } from './chartPath';
 
 // 일별 점수 추세.
 //  · 점수는 «합산되는 양»이 아니라 0~100 척도 위의 위치라 막대가 아니라 선으로 그린다.
@@ -12,6 +13,7 @@ import T from '../tokens';
 // data: [{ label, avg, min, max }] — avg가 null이면 기록 없는 날.
 export default function DailyTrend({ data, height = 104, band = false, color = T.blue, threshold = 70 }) {
   const [w, setW] = useState(0);
+  const reveal = useChartReveal(w);
   const PAD = 6;
   const INSET = 10;                     // 좌우 끝점이 잘리지 않도록
   const plotH = height - PAD * 2;
@@ -28,16 +30,17 @@ export default function DailyTrend({ data, height = 104, band = false, color = T
   });
   if (cur.length) runs.push(cur);
 
-  const line = (run) =>
-    run.map((i, k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)} ${y(data[i].avg).toFixed(1)}`).join(' ');
+  const line = (run) => smoothPathD(run.map((i) => [x(i), y(data[i].avg)]));
 
-  // min~max 띠: 위쪽(max)으로 갔다가 아래쪽(min)으로 되돌아온다.
+  // min~max 띠: 위쪽(max) 곡선을 그리고 오른쪽 끝에서 아래쪽(min) 곡선으로 되돌아온다.
+  // 위·아래 곡선은 각각 부드럽게 잇되, 두 곡선을 잇는 좌우 끝 변만 직선으로 남긴다
+  // (서로 다른 두 계열을 하나의 곡선으로 억지로 이으면 이음매가 부자연스럽게 부풀어 오른다).
   const bandPath = (run) => {
     const ok = run.filter((i) => data[i].min != null && data[i].max != null);
     if (ok.length < 2) return null;
-    const up = ok.map((i, k) => `${k ? 'L' : 'M'}${x(i).toFixed(1)} ${y(data[i].max).toFixed(1)}`).join(' ');
-    const down = [...ok].reverse().map((i) => `L${x(i).toFixed(1)} ${y(data[i].min).toFixed(1)}`).join(' ');
-    return `${up} ${down} Z`;
+    const upperD = smoothPathD(ok.map((i) => [x(i), y(data[i].max)]));
+    const lowerD = smoothPathD([...ok].reverse().map((i) => [x(i), y(data[i].min)])).replace(/^M/, 'L');
+    return `${upperD} ${lowerD} Z`;
   };
 
   return (
@@ -49,30 +52,32 @@ export default function DailyTrend({ data, height = 104, band = false, color = T
         }}
         style={{ width: '100%', height }}>
         {w > 0 && (
-          <Svg width={w} height={height}>
-            {/* 주의 경계(70). 격자가 아니라 임계선이므로 의미색을 옅게 쓴다. */}
-            <Line x1={0} y1={y(threshold)} x2={w} y2={y(threshold)}
-              stroke={T.caution} strokeWidth={1} opacity={0.35}/>
+          <Animated.View style={{ width: reveal.interpolate({ inputRange: [0, 1], outputRange: [0, w] }), height, overflow: 'hidden' }}>
+            <Svg width={w} height={height}>
+              {/* 주의 경계(70). 격자가 아니라 임계선이므로 의미색을 옅게 쓴다. */}
+              <Line x1={0} y1={y(threshold)} x2={w} y2={y(threshold)}
+                stroke={T.caution} strokeWidth={1} opacity={0.35}/>
 
-            {band && runs.map((run, k) => {
-              const d = bandPath(run);
-              return d ? <Path key={`b${k}`} d={d} fill={color} opacity={0.12}/> : null;
-            })}
+              {band && runs.map((run, k) => {
+                const d = bandPath(run);
+                return d ? <Path key={`b${k}`} d={d} fill={color} opacity={0.12}/> : null;
+              })}
 
-            {runs.map((run, k) => (
-              run.length >= 2
-                ? <Path key={`l${k}`} d={line(run)} fill="none" stroke={color}
-                    strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-                : null
-            ))}
+              {runs.map((run, k) => (
+                run.length >= 2
+                  ? <Path key={`l${k}`} d={line(run)} fill="none" stroke={color}
+                      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
+                  : null
+              ))}
 
-            {data.map((d, i) => (
-              d.avg == null ? null : (
-                <Circle key={`d${i}`} cx={x(i)} cy={y(d.avg)} r={4}
-                  fill={color} stroke={T.surface} strokeWidth={2}/>
-              )
-            ))}
-          </Svg>
+              {data.map((d, i) => (
+                d.avg == null ? null : (
+                  <Circle key={`d${i}`} cx={x(i)} cy={y(d.avg)} r={4}
+                    fill={color} stroke={T.surface} strokeWidth={2}/>
+                )
+              ))}
+            </Svg>
+          </Animated.View>
         )}
       </View>
 

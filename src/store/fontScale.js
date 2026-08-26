@@ -11,9 +11,10 @@ export const FONT_SCALE_OPTIONS = [
   { key: 'small',  label: '작게', scale: 0.85 },
   { key: 'normal', label: '보통', scale: 1.0 },
   { key: 'large',  label: '크게', scale: 1.15 },
-  { key: 'xlarge', label: '아주', scale: 1.3 },
+  { key: 'xlarge', label: '아주 크게', scale: 1.3 },
 ];
-const DEFAULT_KEY = 'normal';
+// 화면 안내문("기본값은 «크게»입니다")과 실제 기본값이 어긋나 있던 것을 바로잡음.
+const DEFAULT_KEY = 'large';
 const scaleOf = (key) => FONT_SCALE_OPTIONS.find((o) => o.key === key)?.scale ?? 1;
 
 let _key = DEFAULT_KEY;

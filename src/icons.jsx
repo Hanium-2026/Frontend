@@ -22,6 +22,13 @@ const Icon = {
       <Path d="M10 20.5a2.2 2.2 0 004 0" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
     </Svg>
   ),
+  alert: ({ width = 24, height = 24, color = 'currentColor', style } = {}) => (
+    <Svg width={width} height={height} viewBox="0 0 24 24" fill="none" style={style}>
+      <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M12 7.5v5.2" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+      <Path d="M12 16.3v.1" stroke={color} strokeWidth="2.4" strokeLinecap="round"/>
+    </Svg>
+  ),
   doc: ({ width = 24, height = 24, color = 'currentColor', style } = {}) => (
     <Svg width={width} height={height} viewBox="0 0 24 24" fill="none" style={style}>
       <Path d="M6 3h8l4 4v13.5a1.5 1.5 0 01-1.5 1.5h-10A1.5 1.5 0 015 20.5V4.5A1.5 1.5 0 016.5 3z" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>

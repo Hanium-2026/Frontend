@@ -1,21 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Pressable, Alert } from 'react-native';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
-import Icon from '../../icons';
+import Button from '../../components/Button';
+import StepHeader from '../../components/StepHeader';
 import { authStore } from '../../store/authStore';
 import { sendSms, verifySms } from '../../api/auth';
 import { ApiError } from '../../api/client';
-
-function ProgressBar({ ratio }) {
-  return (
-    <View style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: T.line }}>
-      <View style={{ width: `${ratio * 100}%`, height: 6, borderRadius: 3, backgroundColor: T.ink }}/>
-    </View>
-  );
-}
 
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -87,12 +80,7 @@ export default function AuthOTP() {
 
   return (
     <View style={{ flex: 1, backgroundColor: T.bg }}>
-      <View style={{ paddingTop: insets.top + T.sp.md, paddingHorizontal: T.sp.lg, paddingBottom: T.sp.md, flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
-        <Pressable onPress={() => router.back()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: T.surface, borderWidth: 1, borderColor: T.line, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon.arrowLeft width={18} height={18} color={T.ink}/>
-        </Pressable>
-        <ProgressBar ratio={2 / 5}/>
-      </View>
+      <StepHeader step={2} total={5}/>
 
       <View style={{ flex: 1, paddingHorizontal: T.sp.lg, paddingTop: T.sp.xl }}>
         <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.ink, lineHeight: T.fs.title * 1.35 }}>문자로 받은{'\n'}숫자 6자리를 넣어주세요</Text>
@@ -119,9 +107,7 @@ export default function AuthOTP() {
           남은 시간 <Text style={{ color: secs > 0 ? T.ink : T.danger, fontFamily: T.fontBold }}>{fmtTime(secs)}</Text>
         </Text>
 
-        <Pressable onPress={resend} style={{ marginTop: T.sp.sm }}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink, textDecorationLine: 'underline' }}>다시 받기</Text>
-        </Pressable>
+        <Button variant="text" onPress={resend} style={{ marginTop: T.sp.sm, alignSelf: 'flex-start' }}>다시 받기</Button>
 
         <View style={{ flex: 1 }}/>
 
@@ -136,9 +122,7 @@ export default function AuthOTP() {
       </View>
 
       <View style={{ padding: T.sp.lg, paddingBottom: Math.max(insets.bottom, T.sp.xl) }}>
-        <Pressable onPress={() => verify(otp)} disabled={otp.length !== 6 || busy} style={{ height: 60, borderRadius: T.radius.md, backgroundColor: otp.length === 6 ? T.blue : T.line, alignItems: 'center', justifyContent: 'center' }}>
-          {busy ? <ActivityIndicator color="#fff"/> : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: otp.length === 6 ? '#fff' : T.muted }}>확인</Text>}
-        </Pressable>
+        <Button onPress={() => verify(otp)} disabled={otp.length !== 6} loading={busy}>확인</Button>
       </View>
     </View>
   );

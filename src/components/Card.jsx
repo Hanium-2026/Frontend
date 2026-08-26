@@ -7,7 +7,7 @@ export default function Card({ children, style, pad = 16 }) {
   return (
     <View style={[{
       backgroundColor: T.surface,
-      borderRadius: 18,
+      borderRadius: T.radius.lg,
       padding: pad,
     }, style]}>
       {children}

@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import Text from '../../components/Text';
-import TextInput from '../../components/TextInput';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../../tokens';
@@ -10,6 +9,8 @@ import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
+import Button from '../../components/Button';
+import FormField from '../../components/FormField';
 import { getMe } from '../../api/user';
 import { getMyGuardians, generateLinkCode } from '../../api/links';
 import { ApiError } from '../../api/client';
@@ -127,12 +128,7 @@ export default function ElderCaregiver() {
       </ScrollView>
 
       <View style={{ position: 'absolute', left: 0, right: 0, bottom: 64 + Math.max(insets.bottom, 10), paddingHorizontal: T.sp.lg, paddingVertical: T.sp.md, backgroundColor: T.bg }}>
-        <Pressable onPress={() => setSheet(true)} style={({ pressed }) => ({
-          height: 60, borderRadius: T.radius.md, backgroundColor: pressed ? T.blueDark : T.blue,
-          alignItems: 'center', justifyContent: 'center',
-        })}>
-          <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>보호자와 연결하기</Text>
-        </Pressable>
+        <Button onPress={() => setSheet(true)}>보호자와 연결하기</Button>
       </View>
 
       <TabBar tabs={ELDER_TABS} active={2}/>
@@ -179,47 +175,24 @@ export default function ElderCaregiver() {
                 <Text style={{ fontSize: T.fs.body, color: T.ink, fontFamily: T.fontSemiBold, marginTop: T.sp.md, textAlign: 'center' }}>
                   이 번호를 보호자에게 알려주세요
                 </Text>
-                <Pressable
-                  onPress={() => { setCode(null); setPhone(''); }}
-                  style={{
-                    marginTop: T.sp.lg, alignSelf: 'stretch', height: T.tap, borderRadius: T.radius.md,
-                    backgroundColor: T.surface, borderWidth: 1, borderColor: T.line,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                  <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: T.blue }}>다른 보호자 코드 만들기</Text>
-                </Pressable>
+                <Button variant="outline" onPress={() => { setCode(null); setPhone(''); }} style={{ marginTop: T.sp.lg, alignSelf: 'stretch' }}>
+                  다른 보호자 코드 만들기
+                </Button>
               </View>
             ) : (
               <>
                 <Text style={{ fontSize: T.fs.body, color: T.body, fontFamily: T.font, lineHeight: 25 }}>
                   보호자 전화번호를 입력하면 연동 코드를 만들어드려요.
                 </Text>
-                <TextInput
-                  style={{
-                    marginTop: T.sp.md, backgroundColor: T.bg, borderRadius: T.radius.md,
-                    borderWidth: 1, borderColor: T.line,
-                    paddingHorizontal: T.sp.lg, height: T.tap,
-                    fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink,
-                  }}
+                <FormField
+                  style={{ marginTop: T.sp.md }}
                   value={phone}
                   onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, ''))}
                   placeholder="보호자 전화번호 (01012345678)"
-                  placeholderTextColor={T.muted}
                   keyboardType="number-pad"
                   maxLength={11}
                 />
-                <Pressable
-                  onPress={handleGenerate}
-                  disabled={busy}
-                  style={({ pressed }) => ({
-                    marginTop: T.sp.md, height: T.tap, borderRadius: T.radius.md,
-                    backgroundColor: pressed ? T.blueDark : T.blue,
-                    alignItems: 'center', justifyContent: 'center',
-                  })}>
-                  {busy
-                    ? <ActivityIndicator color="#fff"/>
-                    : <Text style={{ fontSize: T.fs.body, fontFamily: T.fontBold, color: '#fff' }}>코드 생성</Text>}
-                </Pressable>
+                <Button onPress={handleGenerate} loading={busy} style={{ marginTop: T.sp.md }}>코드 생성</Button>
               </>
             )}
 
