@@ -84,16 +84,6 @@ export default function SessionDetail() {
     ? Math.round(chartPoints.reduce((sum, p) => sum + p.raw, 0) / chartPoints.length)
     : null;
 
-  // [NEVO-DEBUG] 그래프 미표시 원인 확인용 — 확인 끝나면 이 블록 삭제.
-  if (__DEV__) {
-    console.log('[NEVO-DEBUG] SessionDetail', JSON.stringify({
-      local, hasData: !!data, hasTrend: !!data?.trend,
-      trendRawLen: data?.trend?.raw?.length ?? null,
-      chartPointsLen: chartPoints?.length ?? null,
-      dangerCount: data?.dangerCount,
-    }));
-  }
-
   const onShare = () => {
     if (!data) return;
     Share.share({
