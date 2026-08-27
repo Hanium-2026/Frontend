@@ -44,6 +44,15 @@ const aggregateMinute = (m) => ({
   dangerCount: m.danger,
 });
 
+// 연속된 위험 윈도우를 하나의 "에피소드"로 묶어 센다 — 정상으로 돌아왔다가 다시 위험해지면 +1.
+// (0.64초짜리 분석 윈도우 단위로 그대로 세면 10초짜리 이상 보행 한 번이 10여 회로 쪼개져 보인다.)
+// ⚠️ 판정 자체(riskLevel 15% 비율 임계값)엔 쓰지 않는다 — 그건 raw 윈도우 단위 그대로 유지.
+const countEpisodes = (flags) => {
+  let count = 0, prev = false;
+  for (const f of flags) { if (f && !prev) count++; prev = f; }
+  return count;
+};
+
 export default function ElderMeasure() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -78,6 +87,7 @@ export default function ElderMeasure() {
   const useBackend = tokenStore.isLoggedIn() && tokenStore.getRole() === 'WARD';
   const sessionIdRef = useRef(null);
   const minuteRef = useRef({ key: null, scores: [], danger: 0 });  // 현재 분 버킷
+  const inDangerRef = useRef(false);  // 직전 윈도우가 SUSPECTED였는지 — 분 버킷 위험 횟수도 에피소드 단위로 세기 위함
 
   const [result, setResult] = useState(null);   // {score, riskLevel, error, ratio}
   const [steps, setSteps] = useState(0);         // 연속 검출기 누적 걸음 수
@@ -185,6 +195,11 @@ export default function ElderMeasure() {
           setScoreHist((h) => [...h, Math.round(r.score)]);
           setRawHist((h) => [...h, Math.round((1 - r.pRaw) * 100)]);  // 평활 전 원점수(흔들린 순간)
 
+          // 위험 신호 진입 시점만 카운트(에피소드 단위) — 계속 SUSPECTED인 동안은 추가로 세지 않는다.
+          const isDanger = r.riskLevel === 'SUSPECTED';
+          const enteredDanger = isDanger && !inDangerRef.current;
+          inDangerRef.current = isDanger;
+
           // 분당 집계: 분이 바뀌면 직전 분을 백엔드로 업로드(중복 전송은 서버가 무시)
           if (useBackend) {
             const key = toMinuteAt();
@@ -192,11 +207,11 @@ export default function ElderMeasure() {
             if (m.key && m.key !== key && m.scores.length) {
               const sid = sessionIdRef.current;
               if (sid) uploadData(sid, [aggregateMinute(m)]).catch(() => {});
-              minuteRef.current = { key, scores: [r.score], danger: r.riskLevel === 'SUSPECTED' ? 1 : 0 };
+              minuteRef.current = { key, scores: [r.score], danger: enteredDanger ? 1 : 0 };
             } else {
               if (!m.key) m.key = key;
               m.scores.push(r.score);
-              if (r.riskLevel === 'SUSPECTED') m.danger += 1;
+              if (enteredDanger) m.danger += 1;
             }
           }
         } else {
@@ -223,6 +238,10 @@ export default function ElderMeasure() {
 
   // 모니터링 차트 데이터(평활+원점수 겹쳐 그림) + 라이브 요약
   const chartData = scoreHist.map((sc, i) => ({ smooth: sc, raw: rawHist[i] ?? sc }));
+  // 위험 신호 지점(P(이상)≥0.5) — accRef.current.rawP는 scoreHist/rawHist와 같은 순서로 쌓이므로 인덱스가 그대로 맞는다.
+  const dangerAt = accRef.current.rawP.reduce((acc, p, i) => { if (p >= 0.5) acc.push(i); return acc; }, []);
+  // "위험 신호 N회" 표시용 — 그래프 점(dangerAt)은 윈도우 단위 그대로 두고, 숫자만 에피소드로 묶는다.
+  const dangerEpisodes = countEpisodes(accRef.current.rawP.map((p) => p >= 0.5));
   const avgScoreLive = scoreHist.length ? Math.round(scoreHist.reduce((x, y) => x + y, 0) / scoreHist.length) : null;
   const minScoreLive = scoreHist.length ? Math.min(...scoreHist) : null;
 
@@ -244,21 +263,22 @@ export default function ElderMeasure() {
     const end = Math.max(ONSET_DROP, a.rawP.length - OFFSET_DROP);
     const pts = a.rawP.slice(ONSET_DROP, end);
     if (pts.length === 0) return null;
-    const median = (arr) => { const s = [...arr].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
-    const avg = (arr) => Math.round(arr.reduce((x, y) => x + y, 0) / arr.length);
+    const mean = (arr) => arr.reduce((x, y) => x + y, 0) / arr.length;
+    const avg = (arr) => Math.round(mean(arr));
     const scores = pts.map((p) => (1 - p) * 100);
     const dangerAt = [];
     pts.forEach((p, i) => { if (p >= 0.5) dangerAt.push(i); });
-    const dangerCount = dangerAt.length;
+    const dangerWindowCount = dangerAt.length;  // riskLevel 비율 판정용 — raw 윈도우 단위 그대로(임계값 튜닝 기준과 동일)
+    const dangerCount = countEpisodes(pts.map((p) => p >= 0.5));  // 화면·백엔드 노출용 — 연속 구간을 1회로 묶음
     const gm = computeGaitMetrics(stepperRef.current.steps);  // 회전 제외 직진 걸음으로 산출(부족하면 null)
     return {
       windows: a.rawP.length,
-      avgScore: Math.round((1 - median(pts)) * 100),
+      avgScore: Math.round((1 - mean(pts)) * 100),
       minScore: Math.round(Math.min(...scores)),
       maxScore: Math.round(Math.max(...scores)),
       avgCadence: a.cadences.length ? avg(a.cadences) : 0,
-      suspectedRatio: Math.round((dangerCount / pts.length) * 100),
-      riskLevel: (dangerCount / pts.length) > 0.3 ? 'SUSPECTED' : 'NORMAL',
+      suspectedRatio: Math.round((dangerWindowCount / pts.length) * 100),
+      riskLevel: (dangerWindowCount / pts.length) > 0.15 ? 'SUSPECTED' : 'NORMAL',
       dangerCount,
       // 측정 직후 결과 화면의 "이상 에피소드" 그래프용 — raw/smooth는 scoreHist와 같은 박자로 쌓여
       // pts와 인덱스가 맞는다(ONSET/OFFSET 구간도 동일하게 trim). 세션을 서버에서 다시 불러올 땐
@@ -386,11 +406,11 @@ export default function ElderMeasure() {
           </Card>
         </View>
 
-        {/* 걸음 수 — 「제대로 세고 있다」는 신호. 이동 거리는 추정값이라 표시하지 않는다. */}
+        {/* 위험 신호 — Figma 목업(02 · 측정) 반영: 걸음 수 대신 지금까지의 위험 에피소드 횟수(연속 구간은 1회). */}
         <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
           <Card pad={T.sp.lg} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: T.fs.body, color: T.body }}>걸음 수</Text>
-            <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{steps}보</Text>
+            <Text style={{ fontSize: T.fs.body, color: T.body }}>위험 신호</Text>
+            <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{dangerEpisodes}회</Text>
           </Card>
         </View>
 
@@ -419,6 +439,7 @@ export default function ElderMeasure() {
           pRaw: shownP.raw,
           pSmooth: shownP.smooth,
           chartData,
+          dangerAt,
           avgScore: avgScoreLive,
           minScore: minScoreLive,
         }}

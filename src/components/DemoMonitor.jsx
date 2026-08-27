@@ -68,7 +68,7 @@ export default function DemoMonitor({ live, onClose, onFinish }) {
   const [chartH, setChartH] = useState(0);
   const {
     mmss, result, score, riskLevel, pRaw, pSmooth,
-    chartData, avgScore, minScore,
+    chartData, dangerAt, avgScore, minScore,
   } = live;
 
   // 점수·P는 마지막 걷기 값을 유지한다(정지 중 값이 사라지면 녹화 화면이 초기화된 것처럼 보임).
@@ -154,7 +154,7 @@ export default function DemoMonitor({ live, onClose, onFinish }) {
         <View style={{ flex: 1, marginTop: 4 }}
           onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); if (h && h !== chartH) setChartH(h); }}>
           {chartData.length >= 2 && chartH > 0
-            ? <TrustChart data={chartData} avg={avgScore} height={chartH}/>
+            ? <TrustChart data={chartData} avg={avgScore} height={chartH} dangerAt={dangerAt}/>
             : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 13, fontFamily: T.fontMedium, color: T.muted }}>걷기 시작 시 그래프가 그려집니다</Text>
               </View>}
