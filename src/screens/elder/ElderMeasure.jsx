@@ -20,14 +20,20 @@ import { getPhysicalInfo } from '../../api/ward';
 import { riskTone } from '../../risk';
 
 const WINDOW = 128;   // 2.56초 @ 50Hz
-const STRIDE = 64;    // 1.28초마다 분석
+// ⚠️ 정확도 개선(2026-08-27): STRIDE를 64→32로 줄여 분석을 2배 촘촘하게(0.64초마다) 돌리고,
+// useGaitPipeline의 중앙값 사전 필터(PRE_FILTER_WINDOW)로 그만큼 늘어난 윈도우 겹침을 활용해
+// 순간 이상치를 걸러낸다. 아래 "윈도우 개수" 기준 상수들은 실제 걸리는 시간(초)이 그대로 유지되도록
+// 전부 2배로 맞춰뒀다 — STRIDE를 또 바꾸면 이 상수들도 같이 스케일링할 것.
+const STRIDE = 32;    // 0.64초마다 분석
 const HZ_MS = 20;     // ~50Hz
-const STRIDE_SEC = (STRIDE * HZ_MS) / 1000;   // 윈도우 1개 = 1.28초
+const STRIDE_SEC = (STRIDE * HZ_MS) / 1000;   // 윈도우 1개 = 0.64초
 
 // 세션 판정은 실시간 EWMA 수렴값이 아니라 raw P(이상) '분포'로 낸다(짧게 재도 판단 가능).
-// 보행 개시 전환기(맨 앞 ONSET_DROP 윈도우)는 비정상 스텝이라 제외. median = 노이즈 견고.
-const ONSET_DROP = 2;         // ~2.5초 제외
-const MIN_WALK_WINDOWS = 12;  // 이 미만이면 기록하지 않는다(개시 제외 후 ~10윈도우·~15초)
+// 보행 개시·종료 전환기(맨 앞/뒤 ONSET_DROP/OFFSET_DROP 윈도우)는 비정상 스텝이라 제외. median = 노이즈 견고.
+// (멈추는 순간도 가속도 충격 패턴이 정상 보행과 달라 모델이 헷갈리는 걸 실기기로 확인함 — 2026-08-27)
+const ONSET_DROP = 4;         // ~2.5초 제외
+const OFFSET_DROP = 4;        // ~2.5초 제외(끝)
+const MIN_WALK_WINDOWS = 24;  // 이 미만이면 기록하지 않는다(개시 제외 후 ~20윈도우·~15초)
 
 // 분 버킷 → 백엔드 MinuteData 형식
 const aggregateMinute = (m) => ({
@@ -44,6 +50,7 @@ export default function ElderMeasure() {
 
   const bufRef = useRef([]);          // [[ax,ay,az,gx,gy,gz], ...]
   const stage2BufRef = useRef([]);    // [[asvmFiltered,gsvmFiltered], ...] — bufRef와 같은 박자로 쌓임
+  const turnBufRef = useRef([]);      // [turning(bool), ...] — 같은 박자, 2차 판정에서 회전 비중 계산용
   const gyroRef = useRef([0, 0, 0]);  // 최신 자이로
   const sinceRef = useRef(0);         // 마지막 전송 이후 쌓인 샘플 수
   const accRef = useRef({ rawP: [], cadences: [] });  // 세션 누적(걷기만): 원시 P(이상)·케이던스
@@ -82,7 +89,6 @@ export default function ElderMeasure() {
   const [rawHist, setRawHist] = useState([]);      // 걷기 원(raw) 점수 이력 — 모니터링 차트의 '흔들린 순간'용
   const [showMonitor, setShowMonitor] = useState(false);  // 시연 모드 오버레이
   const [elapsed, setElapsed] = useState(0);       // 측정 경과 시간(초)
-  const [metrics, setMetrics] = useState(null);          // 라이브 {variability, symmetry} (직진 걸음 부족하면 null)
 
   // 측정 화면 진입 시 세션 확보(진행 중이면 복원, 없으면 시작). 실패해도 측정은 계속.
   useEffect(() => {
@@ -148,17 +154,23 @@ export default function ElderMeasure() {
       stage2Buf.push(gaitFilterRef.current.push(x, y, z, gx, gy, gz));
       if (stage2Buf.length > 256) stage2Buf.splice(0, stage2Buf.length - 256);
 
+      const turnBuf = turnBufRef.current;
+      turnBuf.push(turning);
+      if (turnBuf.length > 256) turnBuf.splice(0, turnBuf.length - 256);
+
       sinceRef.current += 1;
 
       if (buf.length >= WINDOW && sinceRef.current >= STRIDE) {
         sinceRef.current = 0;
         const win = buf.slice(buf.length - WINDOW);
         const win2 = stage2Buf.slice(stage2Buf.length - WINDOW);
+        const turnWin = turnBuf.slice(turnBuf.length - WINDOW);
+        const turnFraction = turnWin.filter(Boolean).length / turnWin.length;
         const run = analyzeRef.current;
         if (!run) { setStatus('모델 준비 중...'); return; }
 
         let r;
-        try { r = run(win, win2); } catch { setStatus('분석 오류'); return; }
+        try { r = run(win, win2, turnFraction); } catch { setStatus('분석 오류'); return; }
         if (!r) { setStatus('모델 준비 중...'); return; }
 
         if (r.activityState === 'WALKING' && r.score != null) {
@@ -198,13 +210,9 @@ export default function ElderMeasure() {
     return () => { aSub.remove(); gSub.remove(); };
   }, []);
 
-  // 측정 경과 시간 + 라이브 보행 지표 (1초마다). 지표는 순수 함수 계산이라 비용 무시 가능.
+  // 측정 경과 시간 (1초마다)
   useEffect(() => {
-    const t = setInterval(() => {
-      setElapsed((e) => e + 1);
-      const st = stepperRef.current.steps;
-      setMetrics(computeGaitMetrics(st));
-    }, 1000);
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
   }, []);
   const mmss = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
@@ -233,7 +241,8 @@ export default function ElderMeasure() {
 
   const buildSummary = (lowConfidence) => {
     const a = accRef.current;
-    const pts = a.rawP.slice(ONSET_DROP);
+    const end = Math.max(ONSET_DROP, a.rawP.length - OFFSET_DROP);
+    const pts = a.rawP.slice(ONSET_DROP, end);
     if (pts.length === 0) return null;
     const median = (arr) => { const s = [...arr].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     const avg = (arr) => Math.round(arr.reduce((x, y) => x + y, 0) / arr.length);
@@ -406,7 +415,6 @@ export default function ElderMeasure() {
           chartData,
           avgScore: avgScoreLive,
           minScore: minScoreLive,
-          metrics,
         }}
       />
       )}

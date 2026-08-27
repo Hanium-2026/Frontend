@@ -19,7 +19,7 @@ const Text = (props) => <RNText allowFontScaling={false} {...props} />;
 //
 // 표시 원칙: 큰 숫자 하나 + 짧은 라벨. 읽어도 이해 안 되는 설명 문구는 넣지 않는다.
 // 청중은 몇 초 훑어보는 심사자다 — "온디바이스 AI가 실시간으로 돈다"는 게 3초 안에 읽혀야 한다.
-// (개발자용 세부 진단은 여기서 뺐다: IMU 원신호 파형, 윈도우 카운트, 보조지표 5종 → 2종.)
+// (개발자용 세부 진단은 여기서 뺐다: IMU 원신호 파형, 윈도우 카운트, 보조지표(대칭·규칙성) — 추정치라 신뢰도 낮아 제거.)
 
 // 단계 타일 (센서 / 1차 / 2차). active=false면 회색으로 죽여 "지금 안 도는 단계"를 드러낸다.
 function Stage({ no, title, main, sub, active, tone }) {
@@ -68,7 +68,7 @@ export default function DemoMonitor({ live, onClose, onFinish }) {
   const [chartH, setChartH] = useState(0);
   const {
     mmss, result, score, riskLevel, pRaw, pSmooth,
-    chartData, avgScore, minScore, metrics,
+    chartData, avgScore, minScore,
   } = live;
 
   // 점수·P는 마지막 걷기 값을 유지한다(정지 중 값이 사라지면 녹화 화면이 초기화된 것처럼 보임).
@@ -159,19 +159,6 @@ export default function DemoMonitor({ live, onClose, onFinish }) {
                 <Text style={{ fontSize: 13, fontFamily: T.fontMedium, color: T.muted }}>걷기 시작 시 그래프가 그려집니다</Text>
               </View>}
         </View>
-      </View>
-
-      {/* 보조 지표 — 점수의 입력이 아니라 '함께 관찰된 보행 특성'이다. 2종만(대칭·규칙성) — 나머지는 판단에 덜 중요. */}
-      <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-        {[
-          ['대칭', metrics ? String(metrics.symmetry) : '—'],
-          ['규칙성', metrics ? `${metrics.variability}%` : '—'],
-        ].map(([l, v], k) => (
-          <View key={k} style={{ ...card, flex: 1, borderRadius: 11, paddingVertical: 8, alignItems: 'center' }}>
-            <Text style={{ fontSize: 11, fontFamily: T.fontSemiBold, color: T.muted }}>{l}</Text>
-            <Text numberOfLines={1} style={{ fontSize: 20, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.5 }}>{v}</Text>
-          </View>
-        ))}
       </View>
 
       <Pressable onPress={onFinish}

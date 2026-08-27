@@ -101,7 +101,11 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 
 ### 현재 구현 (코드 현실 — 위 목표와의 갭, 코드 작업 시 우선 확인)
 - **1차**: `motionLevel`(acc std<0.025g, gyro avg<0.04rad/s → `{stationary, accStd, gyroAvg}`) 휴리스틱 게이트 → 움직이면 **huga+93 활동분류**(`gait_stage1_activity.tflite`, 6-class, g단위)로 walking 판정. `useGaitPipeline`: 정지→STATIONARY, 1차가 walking→2차 실행, sitting/standing(conf≥0.8)→STATIONARY, 그 외(running·계단)→OTHER(점수 없음). `analyze(window, filteredWindow)`는 시연 표시용으로 `{accStd, gyroAvg, ms1, ms2}`(게이트 실측치·단계별 추론 지연)도 함께 반환한다.
-- **2차**: `gait_model.tflite` = 정완 TCN v2(ASVM/GSVM, LOSO 83.75%). 단일 윈도우 신뢰 말고 세션 단위 집계 + P(이상) EWMA 평활 + 워밍업 + 히스테리시스로 판정. 출력이 시그모이드 단일값이라 `softmaxArgmax` 대신 `out2[0]`을 그대로 P(이상)으로 읽는다.
+- **2차**: `gait_model.tflite` = 정완 TCN v2(ASVM/GSVM, LOSO 83.75%). 출력이 시그모이드 단일값이라 `softmaxArgmax` 대신 `out2[0]`을 그대로 P(이상)으로 읽는다. 판정 순서는 **온도 스케일링 → 중앙값 사전 필터 → EWMA → 히스테리시스**(모두 `useGaitPipeline.js`):
+  - `calibrateProbability`(0.5 이하는 그대로, 초과만 T=4로 완화) — 모델이 "이상" 쪽 극단값(0.999)에 쉽게 붙어버리는 과확신 완화. **0.5 이하까지 같이 누그러뜨리면 정상 걸음 점수가 70점대로 깎임**(실기기로 확인, 2026-08-27) — 반드시 비대칭으로.
+  - `PRE_FILTER_WINDOW`(=3) 최근 P(이상)의 중앙값 — 회전·정지 전환 등 한 윈도우짜리 이상치가 EWMA에 그대로 안 들어가게.
+  - `EWMA_ALPHA`(=0.1)·`HYSTERESIS_MIN_RUN`(=6) — `ElderMeasure`의 `STRIDE`(분석 간격, 현재 32=0.64초)에 실제 초 단위 의미가 묶여있다. **STRIDE를 바꾸면 이 상수들도 비례해서 다시 스케일링할 것**(안 그러면 체감 반응속도가 의도치 않게 빨라짐/느려짐).
+  - ⚠️ **회전 구간 판정 보류는 시도했다가 되돌림**(2026-08-27) — `createTurnDetector`(원래 대칭성 계산용, "실기기 미검증" 경고가 이미 있었음) 임계값을 그대로 2차 게이팅에 재사용했더니 정상 걷기의 골반 회전만으로 `turnFraction=1.0`이 나와 판정이 전부 막힘. **재도입하려면 먼저 그 임계값(ON=0.6/OFF=0.35 rad/s)부터 실기기로 재보정할 것.**
 - **전처리**: 1차 피처는 `acc_x,y,z, gyro_x,y,z, acc_x_dyn,y_dyn,z_dyn, acc_norm`(불변). 2차는 `ASVM=√(ax²+ay²+az²)`·`GSVM=√(gx²+gy²+gz²)`를 **causal 4차 3Hz Butterworth**(`gaitPreprocess.js`의 `createGaitFilter`, biquad cascade — NEVO-DataCollector `svm-filter.js`와 동일 스펙이지만 filtfilt 대신 forward 1회)로 거른 값. ⚠️ 이 필터는 **세션당 하나만 만들어 매 샘플(50Hz)마다 push**해야 한다 — 윈도우마다 새로 만들면 워밍업 트랜지언트가 반복돼 학습 분포와 어긋난다. `ElderMeasure.jsx`의 `gaitFilterRef`+`stage2BufRef`가 raw 버퍼(`bufRef`)와 같은 박자로 필터링된 값을 쌓고 `analyze(win, win2)`로 함께 넘긴다. 윈도우 크기도 1차(`WINDOW_SIZE`=100)·2차(`STAGE2_WINDOW_SIZE`=128)가 다르다. scaler는 각각 `gait_stage1_scaler.json`/`gait_scaler.json`.
 - **특징**: 윈도우 cadence(`estimateCadence`, 세션 평균용) + 스트리밍 걸음 기반 `recentCadence`(최근 10초 간격 → 화면 표시용, 안 튐) + `computeGaitMetrics`(회전 제외 직진 걸음의 변동성 CV·좌우대칭성) + 이동거리(걸음×보폭). 세션 종료 시 백엔드로 업로드되어 리포트·보호자 화면에 반영된다(아래 세션 분석 계약 참고).
 - **지표 표기 통일**: 좌우 대칭·변동성은 앱 전체에서 라벨 `좌우 대칭`/`변동성`, 단위 `%`. `computeGaitMetrics`는 8보(직진) 미만이면 `null`을 반환하므로 짧은 측정은 `--`로 표시된다.
@@ -110,10 +114,11 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 측정 화면 우상단 차트 버튼 → 화면 녹화 전용 고밀도 진단 패널. **어르신 화면이 아니므로 의도적으로 T.fs 타입스케일과 전역 글씨 배율을 따르지 않는다**(react-native `Text` 직접 사용). 스크롤 없이 한 화면 고정 — 점수 추이 카드가 `flex:1`로 남는 높이를 흡수한다.
 - ⚠️ **`Modal` 쓰지 말 것 — 절대배치 오버레이다.** 안드로이드에서 `Modal`은 별도 윈도우라 `useSafeAreaInsets()`가 `bottom: 0`을 반환해 하단 내비게이션 바가 버튼을 덮는다(실기기 확인).
 - 표시 원칙: **큰 숫자 하나 + 짧은 라벨.** 읽어도 이해 안 되는 설명 문구(예: "100샘플 × 10특징")는 말로 설명할 내용이지 화면에 넣지 않는다. 회색 마이크로 텍스트 금지 — 잘리거나 안 읽힌다.
-- 구성: ①센서 ②1차 게이트 ③2차 판정 파이프라인 스트립(비활성 단계는 회색) · 점수+산출식 `(1−P)×100` · **P(이상) 막대(원값 ● / 평활 ▮ / 히스테리시스 전환대)** · 점수 추이(TrustChart) · IMU 3축 + 정지 게이트 실측치 · 보조 지표 5종 · 측정 완료
+- 구성: ①센서 ②1차 게이트 ③2차 판정 파이프라인 스트립(비활성 단계는 회색) · 점수+산출식 `(1−P)×100` · **P(이상) 막대(원값 ● / 평활 ▮ / 히스테리시스 전환대)** · 점수 추이(TrustChart) · 측정 완료
+  - ⚠️ **보조 지표(대칭·규칙성)는 제거함** — 좌우대칭·변동성은 단일 센서로 뽑은 추정치라 시연 화면(심사자 대상)에서 근거처럼 보일 수 있는 숫자를 안 보여주는 쪽으로 결정. `computeGaitMetrics` 자체와 세션 업로드(`symmetry`/`variability` → 백엔드)는 그대로 유지 — 결과 화면(SessionDetail 등)의 "함께 관찰된 보행 특성" 표기는 영향 없음.
 - 표시 상수는 `gaitPreprocess`(`STATIONARY_ACC_STD/GYRO_AVG`)·`useGaitPipeline`(`EWMA_ALPHA`, `SUSPECT_ON/OFF`)에서 import — 화면 하드코딩 금지
 - ⚠️ **보조 지표(리듬·CV·대칭)는 점수의 입력이 아니다.** 점수는 2차 모델이 파형에서 직접 판정한 P(이상)에서 나온다. 화면 문구도 "함께 관찰된 보행 특성"으로 고정 — 근거처럼 표현하지 말 것.
-- 시연 타이밍 제약: EWMA 시드가 0(=100점)이라 **걷기 시작 직후는 항상 80점대**, SUSPECTED 전환에 이상 보행 **6~7초(5윈도우) 이상** 필요. 저신뢰 경고를 피하려면 걷기 **20초 이상**(`MIN_WALK_WINDOWS`=12).
+- 시연 타이밍 제약: EWMA 시드가 0(=100점)이라 **걷기 시작 직후는 항상 80~90점대**, SUSPECTED 전환에 이상 보행 **~3.8초(`HYSTERESIS_MIN_RUN`=6윈도우) 이상** 필요. 저신뢰 경고를 피하려면 걷기 **~15초 이상**(`MIN_WALK_WINDOWS`=24, `STRIDE`=32 기준). `ElderMeasure`의 `ONSET_DROP`/`OFFSET_DROP`(각 4윈도우·~2.5초)은 세션 최종 집계에서 시작·정지 전환 구간을 빼는 것이라 **실시간 화면 숫자에는 적용 안 됨**(멈추는 순간 잠깐 떨어지는 건 정상).
 - **모델 입력**: 1차 `(1,100,10)`, 2차 `(1,128,2)`=[ASVM,GSVM]. **fast-tflite v3**: `loadTensorflowModel(src, [])` — delegates(빈 배열=CPU) **필수 인자**. `runSync` 입출력은 ArrayBuffer → 입력 `.buffer`, 출력 `new Float32Array(out[0])`.
 - **출력 매핑**: `score=(1-P이상)×100`, `riskLevel=P이상≥0.5?SUSPECTED:NORMAL`. 반환 형태는 세션 업로드 계약과 동일.
 - **파일**: 1차 `gait_stage1_activity.tflite`+`gait_stage1_scaler.json`, 2차 `gait_model.tflite`+`gait_scaler.json` (`.tflite`는 `metro.config.js`에서 assetExts 등록). 모델 교체 시 `assets/models/` 파일만 교체, 전처리/단위가 바뀌면 `gaitPreprocess.js`(`buildStage1Input`/`buildStage2Input`) 수정.

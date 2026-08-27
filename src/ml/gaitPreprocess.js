@@ -346,3 +346,25 @@ export function softmaxArgmax(raw) {
   for (let i = 1; i < probs.length; i++) if (probs[i] > probs[idx]) idx = i;
   return { probs, idx, confidence: probs[idx] };
 }
+
+// 온도 스케일링(temperature scaling) — 2차 모델이 "이상" 쪽 극단값(0.9998 등)에 쉽게 붙어버려서
+// (윈도우 하나만 바뀌어도 0.01↔0.999로 뒤집힘) 뒤에 오는 EWMA·히스테리시스가 사실상 무력화되던
+// 문제 완화용. logit으로 풀었다가 T로 나눠서 다시 시그모이드 — T가 클수록 완만해진다.
+// ⚠️ 0.5 이하(정상 쪽)는 그대로 둔다 — 실기기 데이터로 확인해보니 모델이 "정상"이라고 낮게(0.001~0.05)
+// 확신할 때는 실제로 잘 맞고 있었는데, 양쪽 다 누그러뜨리면 정상 걸음의 점수까지 70점대로 깎여버렸음.
+// 문제는 "이상 쪽 과확신"뿐이라 그쪽만 완화한다.
+// ⚠️ T=4는 실기기 자연스러운 보행 데이터로 검증한 값이 아니라 초기 추정치 — 실측하며 조정 필요.
+export function calibrateProbability(p, temperature) {
+  if (p <= 0.5) return p;
+  const eps = 1e-6;
+  const pc = Math.min(1 - eps, p);
+  const logit = Math.log(pc / (1 - pc));
+  return 1 / (1 + Math.exp(-logit / temperature));
+}
+
+// 중앙값 — 최근 N개 P(이상) 중 순간 이상치(회전·정지 전환 등으로 생기는 단발성 스파이크) 제거용.
+export function median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}

@@ -15,15 +15,23 @@ import {
   buildStage1Input,
   buildStage2Input,
   softmaxArgmax,
+  calibrateProbability,
+  median,
   STAGE1_CLASSES,
   STAGE2_WINDOW_SIZE,
 } from './gaitPreprocess';
 
 const STATIONARY_CLASSES = new Set(['sitting', 'standing']); // 1차가 이 동작을 확신하면 정지 처리
 // 판정 파라미터 — 시연 모드가 화면에 그대로 표시하므로 export(화면 하드코딩 금지).
-export const EWMA_ALPHA = 0.2;        // 평활화 강도(작을수록 안정·느림). 시정수 ~5윈도우(~6초)
+// ⚠️ ElderMeasure의 STRIDE(분석 간격)를 바꾸면 아래 "윈도우 개수" 기준 상수들의 실제 초 단위 의미도
+// 같이 바뀐다 — STRIDE를 절반으로 줄일 때(2026-08-27, 64→32) 시정수·연속횟수를 2배로 맞춰서
+// 실제 걸리는 시간(초)은 그대로 유지했다.
+export const PRE_FILTER_WINDOW = 3;   // EWMA에 넣기 전 최근 N개 P(이상)의 중앙값을 먼저 취함 — 순간 이상치 제거
+export const EWMA_ALPHA = 0.1;        // 평활화 강도(작을수록 안정·느림). 시정수 ~10윈도우(~6.4초)
 export const SUSPECT_ON = 0.55;       // 라벨 히스테리시스: 이상으로 전환
 export const SUSPECT_OFF = 0.45;      // 정상으로 전환 (사이 구간은 직전 라벨 유지)
+export const CALIBRATION_TEMPERATURE = 4;  // 2차 출력 온도 스케일링(gaitPreprocess.calibrateProbability) — 초기 추정치
+export const HYSTERESIS_MIN_RUN = 6;       // 라벨 전환에 연속 몇 윈도우가 필요한지(~3.8초) — 순간 튐 방지
 
 // 추론 지연 계측용 시계. 온디바이스 추론임을 시연에서 ms로 보여준다(서버 왕복이면 나올 수 없는 값).
 const nowMs = () => (global.performance && global.performance.now ? global.performance.now() : Date.now());
@@ -33,6 +41,8 @@ export function useGaitPipeline() {
   const stage2Ref = useRef(null);
   const emaRef = useRef(null);      // P(이상) EWMA
   const riskRef = useRef('NORMAL'); // 히스테리시스 적용된 라벨
+  const pendingRef = useRef({ label: null, count: 0 });  // 라벨 전환 대기(연속 윈도우 카운트)
+  const rawBufRef = useRef([]);     // 최근 PRE_FILTER_WINDOW개의 온도보정 P(이상) — 중앙값 사전 필터용
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(null);
 
@@ -66,7 +76,8 @@ export function useGaitPipeline() {
   // + 시연 표시용: {accStd, gyroAvg, ms1, ms2} — 정지 게이트 실측치와 단계별 추론 지연(ms).
   // window: 1차용 raw [ax,ay,az,gx,gy,gz] 윈도우. filteredWindow: 2차용 이미 causal 필터링된
   // [asvmFiltered, gsvmFiltered] 윈도우(createGaitFilter로 세션 내내 상태 유지하며 만든 것).
-  function analyze(window, filteredWindow) {
+  // turnFraction: 이 윈도우 중 회전 중이었던 샘플 비율(0~1) — 회전 걸음은 모양이 달라 2차 판정을 흐린다.
+  function analyze(window, filteredWindow, turnFraction = 0) {
     const m1 = stage1Ref.current;
     const m2 = stage2Ref.current;
     if (!m1 || !m2) return null;
@@ -95,13 +106,27 @@ export function useGaitPipeline() {
       return { activityState: 'OTHER', activityClass, activityConfidence: conf1, score: null, riskLevel: 'NORMAL', cadence: null, ...gate, ms1, ms2: 0 };
     }
 
+    // ⚠️ 회전 구간 판정 보류는 되돌림(2026-08-27) — createTurnDetector 임계값이 실기기 미검증
+    // 상태라 정상 걷기의 골반 회전만으로도 turnFraction=1.0이 나와 2차 판정이 전부 막혔음.
+    // turnFraction 인자는 남겨두되(호출부 시그니처 유지) 여기서는 쓰지 않는다 — 재도입 시
+    // createTurnDetector 임계값(ON/OFF)부터 실기기로 재보정할 것.
+
     // 2차: 정상/이상 보행 (causal 필터링된 ASVM/GSVM 입력, 출력은 시그모이드 P(이상) 단일값)
     const stage2Samples = resampleWindow(filteredWindow, STAGE2_WINDOW_SIZE, [0, 0]);
     const stage2Input = buildStage2Input(stage2Samples);
     const t2 = nowMs();
     const out2 = new Float32Array(m2.runSync([stage2Input.buffer])[0]);
     const ms2 = nowMs() - t2;
-    const pRaw = out2[0] ?? 0;
+    // 온도 스케일링 — 모델이 극단값(0.0002~0.9998)에 거의 항상 붙어있어 뒤의 EWMA·히스테리시스가
+    // 사실상 무력화되던 문제 완화.
+    const pRawInstant = calibrateProbability(out2[0] ?? 0, CALIBRATION_TEMPERATURE);
+
+    // 중앙값 사전 필터 — 회전·정지 전환 등 한 윈도우짜리 이상치가 EWMA에 그대로 들어가지 않도록,
+    // 최근 PRE_FILTER_WINDOW개 중 중앙값만 취한다(이 값이 pRaw로 EWMA·세션 판정에 쓰인다).
+    const rawBuf = rawBufRef.current;
+    rawBuf.push(pRawInstant);
+    if (rawBuf.length > PRE_FILTER_WINDOW) rawBuf.shift();
+    const pRaw = median(rawBuf);
 
     // [NEVO-DEBUG] 임시 진단 로그 — score=9 등 이상 판정 원인 확인용. 확인 끝나면 이 블록 삭제.
     if (__DEV__) {
@@ -112,7 +137,7 @@ export function useGaitPipeline() {
       console.log('[NEVO-DEBUG]', JSON.stringify({
         asvmFiltered: last[0]?.toFixed(4), gsvmFiltered: last[1]?.toFixed(4),
         asvmZWindow: stat(azArr), gsvmZWindow: stat(gzArr),
-        pRaw: pRaw.toFixed(4),
+        pRawModel: (out2[0] ?? 0).toFixed(4), pRawInstant: pRawInstant.toFixed(4), pRawMedian: pRaw.toFixed(4),
       }));
     }
 
@@ -123,10 +148,20 @@ export function useGaitPipeline() {
     const ema = EWMA_ALPHA * pRaw + (1 - EWMA_ALPHA) * seed;
     emaRef.current = ema;
 
-    // 라벨 히스테리시스 — 0.5 경계에서 깜빡이지 않도록 평활화 확률 기준으로만 갱신.
+    // 라벨 히스테리시스 — 0.5 경계 자체는 평활화 확률로 잡지만, 그것만으로는 한 윈도우의 튐에도
+    // 라벨이 바로 바뀔 수 있어 HYSTERESIS_MIN_RUN번 연속으로 같은 후보가 나와야 실제로 전환한다.
     let risk = riskRef.current;
-    if (ema >= SUSPECT_ON) risk = 'SUSPECTED';
-    else if (ema <= SUSPECT_OFF) risk = 'NORMAL';
+    const candidate = ema >= SUSPECT_ON ? 'SUSPECTED' : (ema <= SUSPECT_OFF ? 'NORMAL' : null);
+    const pending = pendingRef.current;
+    if (candidate && candidate !== risk) {
+      pendingRef.current = { label: candidate, count: pending.label === candidate ? pending.count + 1 : 1 };
+      if (pendingRef.current.count >= HYSTERESIS_MIN_RUN) {
+        risk = candidate;
+        pendingRef.current = { label: null, count: 0 };
+      }
+    } else {
+      pendingRef.current = { label: null, count: 0 };  // 후보가 없거나 이미 현재 라벨과 같음 — 대기 취소
+    }
     riskRef.current = risk;
 
     return {
