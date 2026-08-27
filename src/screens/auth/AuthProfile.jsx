@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Pressable, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import TextInput from '../../components/TextInput';
 import Text from '../../components/Text';
 import { useRouter } from 'expo-router';
@@ -11,7 +11,7 @@ import SelectableCard from '../../components/SelectableCard';
 import FormField from '../../components/FormField';
 import { authStore } from '../../store/authStore';
 
-const CURRENT_YEAR = new Date().getFullYear();
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function AuthProfile() {
   const router = useRouter();
@@ -19,13 +19,17 @@ export default function AuthProfile() {
   const isWard = authStore.get().role !== 'caregiver';
   const [name, setName] = useState('');
   const [gender, setGender] = useState('female');
-  const [birthYear, setBirthYear] = useState(1960);
+  const [birthDate, setBirthDate] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
 
   const handleNext = () => {
     if (!name.trim()) {
       Alert.alert('이름 확인', '이름을 입력해주세요.');
+      return;
+    }
+    if (!DATE_RE.test(birthDate)) {
+      Alert.alert('생년월일 확인', '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
       return;
     }
     if (isWard) {
@@ -36,7 +40,7 @@ export default function AuthProfile() {
       }
       authStore.set({ height: h, weight: w });
     }
-    authStore.set({ name: name.trim(), gender, birthYear });
+    authStore.set({ name: name.trim(), gender, birthDate });
     router.push('/(auth)/password');
   };
 
@@ -74,21 +78,13 @@ export default function AuthProfile() {
           </View>
 
           <View style={{ marginTop: T.sp.xl }}>
-            <Text style={{ fontSize: T.fs.caption, color: T.muted }}>출생 연도</Text>
-            <View style={{
-              backgroundColor: T.surface, borderRadius: T.radius.md, paddingHorizontal: T.sp.lg, height: 60,
-              borderWidth: 1, borderColor: T.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: T.sp.sm,
-            }}>
-              <Pressable onPress={() => setBirthYear((y) => Math.max(1920, y - 1))} hitSlop={8}>
-                <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.blue }}>−</Text>
-              </Pressable>
-              <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>
-                {birthYear}년 ({CURRENT_YEAR - birthYear}세)
-              </Text>
-              <Pressable onPress={() => setBirthYear((y) => Math.min(2010, y + 1))} hitSlop={8}>
-                <Text style={{ fontSize: T.fs.title, fontFamily: T.fontBold, color: T.blue }}>+</Text>
-              </Pressable>
-            </View>
+            <FormField
+              label="생년월일"
+              value={birthDate}
+              onChangeText={(v) => setBirthDate(v.replace(/[^0-9-]/g, '').slice(0, 10))}
+              keyboardType="numbers-and-punctuation"
+              placeholder="1950-01-01"
+            />
           </View>
 
           {isWard && (

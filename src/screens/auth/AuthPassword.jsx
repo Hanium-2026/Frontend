@@ -48,7 +48,7 @@ export default function AuthPassword() {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    const { role, phone, name, gender, birthYear, height, weight } = authStore.get();
+    const { role, phone, name, gender, birthDate, height, weight } = authStore.get();
     const isWard = role !== 'caregiver';
 
     const payload = {
@@ -59,7 +59,7 @@ export default function AuthPassword() {
       consents: ALL_CONSENTS,
       ...(isWard ? {
         gender: gender === 'male' ? 'MALE' : 'FEMALE',
-        birthDate: `${birthYear}-01-01`,
+        birthDate,
         height,
         weight,
       } : {}),

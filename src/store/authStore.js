@@ -3,7 +3,7 @@ const _data = {
   phone: '',
   name: '',
   gender: 'female',
-  birthYear: 1960,
+  birthDate: '',
 };
 
 export const authStore = {

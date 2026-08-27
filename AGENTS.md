@@ -131,7 +131,7 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - **역할 제한**: 토큰 WARD/GUARDIAN 위반 시 403
 - **enum**: Role=WARD|GUARDIAN, Gender=MALE|FEMALE, riskLevel=NORMAL|SUSPECTED, ConsentType=TERMS|PRIVACY|SMS|MEDICAL, SmsVerificationPurpose=SIGNUP|PASSWORD_RESET
 - 전화 `^01[016789]\d{7,8}$` / 비번 8자+ 영문+숫자+특수
-- ⚠️ **WARD 가입**: height·weight·birthDate·gender **모두 필수**(AuthService 검증), 약관 TERMS·PRIVACY agreed 필수. 가입 실패 시 OTP 소비됨→재발급 필요. (AuthProfile은 birthYear만 받아 `YYYY-01-01`로 전송 — 미해결)
+- ⚠️ **WARD 가입**: height·weight·birthDate·gender **모두 필수**(AuthService 검증), 약관 TERMS·PRIVACY agreed 필수. 가입 실패 시 OTP 소비됨→재발급 필요.
 - OTP는 실제 SMS 안 감 → 백엔드 콘솔 로그 `[SMS][DEV ONLY] ... code=NNNNNN`
 
 ### API 맵 (컨트롤러 기준)
@@ -158,7 +158,6 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - ★ **실기기 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 `pRaw`를 0.5 위로 올리는 것 확정
 - ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** — 전용 UI는 만들지 않음(시연 모드에 클래스명만)
 - FCM **실발송**은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 동작(프론트 연동은 완료)
-- `AuthProfile`이 birthYear만 받아 `YYYY-01-01`로 전송 — 미해결
 - ★ **백그라운드 상시 측정** — 위 '측정 방식' 참고. 현재 인프라가 전무하다(`expo-task-manager`·foreground service 없음, 센서 구독이 `ElderMeasure` 화면 생명주기에 묶여 있음). 필요: Android foreground service(지속 알림 필수) · 배터리 최적화 예외 요청 · 백그라운드에서 `react-native-fast-tflite` 추론 가능 여부 검증 · 배터리 소모 측정
 - ★ **오프라인 큐 (SQLite 누적 → 복구 시 동기화)** — **백엔드는 이미 준비됨**: `POST /{id}/data`가 `ON CONFLICT (session_id, minute_at) DO NOTHING`으로 **중복 전송을 자동 무시**하고 `{saved, skipped}`를 돌려준다. 즉 **같은 데이터를 몇 번 보내도 안전**하므로 프론트는 성공 확인 없이 재전송해도 된다. 폰이 꺼져도 `GET /active`로 진행 중 세션을 이어받을 수 있다. ⚠️ **프론트는 큐가 전혀 없고 업로드 실패를 `.catch(() => {})`로 조용히 버린다**(`ElderMeasure` 4곳) — 지하철에서 측정하면 데이터가 영구 소실되는데 사용자는 저장된 줄 안다. 상시 측정이 붙으면 손실 규모가 커진다
 - 3차 이상유형 분류 모델 · Google Play 출시
