@@ -8,6 +8,7 @@ import AppHeader from '../components/AppHeader';
 import Card from '../components/Card';
 import Pill from '../components/Pill';
 import RangeBar from '../components/RangeBar';
+import TrustChart from '../components/TrustChart';
 import Button from '../components/Button';
 import { getSessionReport } from '../api/reports';
 import { sessionStore } from '../store/sessionStore';
@@ -24,24 +25,21 @@ const fromLocal = (s) => s && ({
   avgScore: s.avgScore,
   minScore: s.minScore,
   maxScore: s.maxScore,
-  symmetry: s.symmetry,
-  variability: s.variability,
   dangerCount: s.dangerCount,
   riskLevel: s.riskLevel,
+  trend: s.trend,   // {raw, smooth, dangerAt} — 측정 직후에만 있음(서버 리포트는 시계열을 안 내려줌)
   summary: null,
   lowConfidence: s.lowConfidence,
 });
 
-// 서버는 symmetryScore/variabilityScore로 내려준다(둘 다 0~100, 대칭은 100이 정상).
 const fromReport = (r) => r && ({
   at: r.createdAt,
   avgScore: r.avgScore,
   minScore: r.minScore,
   maxScore: r.maxScore,
-  symmetry: r.symmetryScore,
-  variability: r.variabilityScore,
   dangerCount: r.dangerCount,
   riskLevel: r.riskLevel,
+  trend: null,      // 서버는 세션 시계열을 저장하지 않음 — 그래프 없이 위험 신호 횟수만 표시
   summary: r.reportSummary,
   lowConfidence: false,
 });
@@ -78,12 +76,23 @@ export default function SessionDetail() {
         : '이번 측정의 보행이 안정적으로 기록됐어요.'
   ));
 
-  // 함께 관찰된 보행 특성 — 점수의 근거가 아니라 참고 지표다.
-  const traits = !data ? [] : [
-    ['좌우 대칭', round(data.symmetry), data.symmetry == null ? '' : '%'],
-    ['걸음 변동성', round(data.variability), data.variability == null ? '' : '%'],
-    ['위험 신호', String(data.dangerCount ?? 0), '회'],
-  ];
+  // 이상 에피소드 그래프용 — 측정 직후(local)에만 시계열이 있다(서버는 세션 시계열을 저장하지 않음).
+  const chartPoints = data?.trend
+    ? data.trend.raw.map((r, i) => ({ raw: r, smooth: data.trend.smooth[i] ?? r }))
+    : null;
+  const chartAvg = chartPoints && chartPoints.length
+    ? Math.round(chartPoints.reduce((sum, p) => sum + p.raw, 0) / chartPoints.length)
+    : null;
+
+  // [NEVO-DEBUG] 그래프 미표시 원인 확인용 — 확인 끝나면 이 블록 삭제.
+  if (__DEV__) {
+    console.log('[NEVO-DEBUG] SessionDetail', JSON.stringify({
+      local, hasData: !!data, hasTrend: !!data?.trend,
+      trendRawLen: data?.trend?.raw?.length ?? null,
+      chartPointsLen: chartPoints?.length ?? null,
+      dangerCount: data?.dangerCount,
+    }));
+  }
 
   const onShare = () => {
     if (!data) return;
@@ -163,20 +172,31 @@ export default function SessionDetail() {
               </Card>
             </View>
 
-            {/* 함께 관찰된 보행 특성 — 점수의 근거가 아니라 참고 지표다. */}
+            {/* 이상 에피소드 — 위험 신호가 왜 찍혔는지 점수 그래프로 보여준다(그래프는 측정 직후에만 있음). */}
             <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
               <Card pad={T.sp.xl}>
-                <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>함께 관찰된 보행 특성</Text>
-                {traits.map(([label, value, unit], i) => (
-                  <View key={label} style={{
-                    flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between',
-                    paddingVertical: T.sp.md,
-                    borderBottomWidth: i < traits.length - 1 ? 1 : 0, borderBottomColor: T.line,
-                  }}>
-                    <Text style={{ fontSize: T.fs.body, color: T.body }}>{label}</Text>
-                    <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{value}{unit}</Text>
-                  </View>
-                ))}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>이상 에피소드</Text>
+                  <Pill tone={tone} size="sm">{RISK_LABEL[tone]}</Pill>
+                </View>
+
+                {chartPoints && chartPoints.length >= 2 && (
+                  <>
+                    <View style={{ marginTop: T.sp.lg }}>
+                      <TrustChart data={chartPoints} avg={chartAvg} height={64} dangerAt={data.trend.dangerAt}/>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: T.fs.caption, color: T.muted }}>측정 시작</Text>
+                      <Text style={{ fontSize: T.fs.caption, color: T.muted }}>측정 종료</Text>
+                    </View>
+                    <View style={{ height: 1, backgroundColor: T.line, marginTop: T.sp.md, marginBottom: T.sp.xs }}/>
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingVertical: T.sp.md }}>
+                  <Text style={{ fontSize: T.fs.body, color: T.body }}>위험 신호</Text>
+                  <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{data.dangerCount ?? 0}회</Text>
+                </View>
               </Card>
             </View>
           </ScrollView>

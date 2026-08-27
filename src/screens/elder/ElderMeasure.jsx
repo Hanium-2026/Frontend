@@ -247,7 +247,9 @@ export default function ElderMeasure() {
     const median = (arr) => { const s = [...arr].sort((x, y) => x - y); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
     const avg = (arr) => Math.round(arr.reduce((x, y) => x + y, 0) / arr.length);
     const scores = pts.map((p) => (1 - p) * 100);
-    const dangerCount = pts.filter((p) => p >= 0.5).length;
+    const dangerAt = [];
+    pts.forEach((p, i) => { if (p >= 0.5) dangerAt.push(i); });
+    const dangerCount = dangerAt.length;
     const gm = computeGaitMetrics(stepperRef.current.steps);  // 회전 제외 직진 걸음으로 산출(부족하면 null)
     return {
       windows: a.rawP.length,
@@ -258,10 +260,14 @@ export default function ElderMeasure() {
       suspectedRatio: Math.round((dangerCount / pts.length) * 100),
       riskLevel: (dangerCount / pts.length) > 0.3 ? 'SUSPECTED' : 'NORMAL',
       dangerCount,
+      // 측정 직후 결과 화면의 "이상 에피소드" 그래프용 — raw/smooth는 scoreHist와 같은 박자로 쌓여
+      // pts와 인덱스가 맞는다(ONSET/OFFSET 구간도 동일하게 trim). 세션을 서버에서 다시 불러올 땐
+      // 이 시계열이 없으므로(백엔드 미저장) 그래프 없이 위험 신호 횟수만 표시된다.
+      trend: { raw: scores.map((s) => Math.round(s)), smooth: scoreHist.slice(ONSET_DROP, end), dangerAt },
       steps,
       distanceM,
-      symmetry: gm ? gm.symmetry : null,       // 좌우대칭성(추정, 100=대칭)
-      variability: gm ? gm.variability : null,  // 걸음 간격 변동계수 CV(%)
+      symmetry: gm ? gm.symmetry : null,       // 좌우대칭성(추정, 100=대칭) — 결과 화면엔 더 이상 표시하지 않음(세션 업로드용으로만 유지)
+      variability: gm ? gm.variability : null,  // 걸음 간격 변동계수 CV(%) — 위와 동일
       lowConfidence,
       at: Date.now(),
     };
