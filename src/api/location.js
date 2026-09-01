@@ -12,6 +12,5 @@ export const uploadLocation = (latitude, longitude) =>
 export const locationStreamUrl = (wardId) => `${serverConfig.getBackendBase()}/api/locations/stream/${wardId}`;
 
 // GUARDIAN: 하루 동선(위치 이력) 조회. date 생략 시 백엔드가 오늘(KST)로 처리.
-// ⚠️ 백엔드에 history 엔드포인트 도입 전까지는 404 — 도입되면 바로 동작(계약은 AGENTS.md 참고).
 export const getLocationHistory = (wardId, date) =>
   api.get(`/api/locations/${wardId}/history${date ? `?date=${date}` : ''}`);

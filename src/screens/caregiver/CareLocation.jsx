@@ -70,7 +70,7 @@ export default function CareLocation() {
     setStatus('connecting');
     setTrail([]);
 
-    // 오늘 동선 이력 로드(백엔드 history 엔드포인트 도입 전까진 실패 → 빈 동선으로 스킵).
+    // 오늘 동선 이력 로드.
     getLocationHistory(selectedId)
       .then((points) => {
         if (!alive) return;
@@ -182,12 +182,6 @@ export default function CareLocation() {
             )}
           </NaverMapView>
         </View>
-
-        <Card pad={T.sp.lg}>
-          <Text style={{ fontSize: T.fs.caption, color: T.muted, lineHeight: T.fs.caption * 1.5 }}>
-            오늘 걸어간 경로(동선)는 아직 준비 중입니다. 지금은 현재 위치만 보여드려요.
-          </Text>
-        </Card>
       </ScrollView>
 
       <TabBar tabs={CARE_TABS} active={2}/>

@@ -142,7 +142,7 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - **세션 `/api/gait/sessions`**(WARD): POST /start · GET /active(없으면 404) · POST /{id}/data `{data:[{minuteAt,avgScore,minScore,maxScore,dangerCount}]}` · POST /{id}/stop · POST /{id}/analysis `{riskLevel,avg/min/maxScore,dangerCount,reportSummary,variabilityScore,asymmetryScore}`(dangerCount>0→보호자 FCM)
   - ⚠️ **`asymmetryScore`는 0~1 원값**이고 백엔드가 `(1-x)*100`으로 `symmetryScore`(0~100)를 만든다. 프론트 `symmetry`(100=대칭)를 보낼 땐 `(100-symmetry)/100`으로 역변환할 것. `variabilityScore`는 CV(%) 무변환 통과. 둘 다 nullable
 - **리포트 `/api/gait/reports`**: GET /{sessionId} · GET /daily(WARD,7일) · GET /ward/{wardId}/daily?days=7|30|90(GUARDIAN) · GET /dashboard(GUARDIAN)
-- **위치 `/api/locations`**: POST /(WARD `{latitude,longitude}`) · GET /stream/{wardId}(GUARDIAN, SSE)
+- **위치 `/api/locations`**: POST /(WARD `{latitude,longitude}`) · GET /stream/{wardId}(GUARDIAN, SSE) · GET /{wardId}/history?date=YYYY-MM-DD(GUARDIAN, date 생략 시 오늘 KST)
 - 톤 매핑: 백엔드 riskLevel은 2단계(NORMAL/SUSPECTED) → UI 3단계는 `risk.js`에서 산출
 - ⚠️ **백엔드에 없는 기능은 화면에도 두지 않는다**: 알림 설정·공유 설정·낙상 감지·지오펜스·PDF 리포트·119 연동은 API가 없다. 동작하지 않는 토글·버튼·수치를 "있는 것처럼" 그리지 말 것(과거에 이런 더미 화면들이 있었고 전부 제거함)
 
@@ -153,9 +153,7 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 ## 열린 작업
 완료 내역은 git 히스토리에 있다. 여기엔 **아직 안 된 것 + 그것이 코드 판단에 주는 제약**만 적는다.
 
-- ★ **`CareLocation` 오늘 동선** — **실기기/로컬 검증 대기 중**(2026-09-01). 백엔드 develop에 `GET /api/locations/{wardId}/history`(insert-only `LocationHistory` 테이블) 구현·병합됨(PR #13) — 프론트 `getLocationHistory` + `NaverMapPathOverlay` 계약과 일치, 코드 수정 없이 동작할 것으로 보임. 실제로 동선이 그려지는지 확인 후 [CareLocation.jsx](src/screens/caregiver/CareLocation.jsx)의 "동선 준비 중" 안내 문구 제거할 것
 - ★ **네이티브 모듈 추가 후 EAS dev build 필요** — 네이버 지도·FCM은 기존 빌드로 동작 안 함
-- ★ **Render 배포 백엔드 타임존 미고정(추정 UTC) — 자정~오전 9시(KST) 측정이 "어제"로 집계됨.** `application.yml`에 `spring.jackson.time-zone`·`TZ` 등 타임존 설정이 전혀 없어 `LocalDateTime.now()`(`SessionService` 세션/`upsertDailyScore` 등)가 서버 OS 기본값(Render 컨테이너 추정 UTC)을 그대로 씀. 증상 둘 다 이 하나의 원인: ① `gait_reports.created_at`이 UTC로 찍히고 프론트가 타임존 표기 없는 문자열을 로컬(KST)로 오인 파싱(`new Date(iso)`) → 기록 화면에 "어제 17:40"처럼 실제보다 하루 전으로 표시 ② 같은 서버 시계로 만든 `daily_scores.date`도 UTC 기준이라 KST "오늘"에 해당하는 행이 없음 → `ElderHome`의 오늘 점수가 `--`. **프론트에서 보정 불가**(로컬 PC 백엔드는 이미 KST라 보정하면 그쪽이 깨짐) — 서버 시계/직렬화를 Asia/Seoul로 고정해야 근본 해결.
 - ★ **실기기 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 `pRaw`를 0.5 위로 올리는 것 확정
 - ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** — 전용 UI는 만들지 않음(시연 모드에 클래스명만)
 - FCM **실발송**은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 동작(프론트 연동은 완료)
