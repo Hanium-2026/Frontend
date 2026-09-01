@@ -13,6 +13,7 @@ import DailyTrend from '../../components/DailyTrend';
 import { getMe } from '../../api/user';
 import { getMyGuardians } from '../../api/links';
 import { getDailyReport } from '../../api/reports';
+import { flushUploadQueue } from '../../store/uploadQueue';
 import { riskTone, RISK_LABEL } from '../../risk';
 import { fillDays } from '../../daily';
 
@@ -39,9 +40,12 @@ export default function ElderHome() {
       getMyGuardians().then((list) => { if (alive) setGuardians(list ?? []); }).catch(() => {
         if (alive) setGuardians([]);
       });
-      getDailyReport().then((d) => { if (alive) setDaily(d?.dailyScores ?? []); }).catch(() => {
-        if (alive) setDaily([]);
-      });
+      // 오프라인 큐에 남은 측정이 있으면 먼저 올려본 뒤 조회 — 그래야 방금 복구된 데이터도 바로 보인다.
+      flushUploadQueue()
+        .catch(() => {})
+        .then(() => getDailyReport())
+        .then((d) => { if (alive) setDaily(d?.dailyScores ?? []); })
+        .catch(() => { if (alive) setDaily([]); });
       return () => { alive = false; };
     }, [])
   );

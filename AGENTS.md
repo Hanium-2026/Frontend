@@ -141,6 +141,8 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - **가족연결 `/api/ward-link`**: POST /code(WARD `{guardianPhone}`→코드) · POST /(GUARDIAN `{code}`) · DELETE /{wardId}(GUARDIAN) · GET /wards(GUARDIAN) · GET /guardians(WARD) · GET /{wardId}/alerts(GUARDIAN)
 - **세션 `/api/gait/sessions`**(WARD): POST /start · GET /active(없으면 404) · POST /{id}/data `{data:[{minuteAt,avgScore,minScore,maxScore,dangerCount}]}` · POST /{id}/stop · POST /{id}/analysis `{riskLevel,avg/min/maxScore,dangerCount,reportSummary,variabilityScore,asymmetryScore}`(dangerCount>0→보호자 FCM)
   - ⚠️ **`asymmetryScore`는 0~1 원값**이고 백엔드가 `(1-x)*100`으로 `symmetryScore`(0~100)를 만든다. 프론트 `symmetry`(100=대칭)를 보낼 땐 `(100-symmetry)/100`으로 역변환할 것. `variabilityScore`는 CV(%) 무변환 통과. 둘 다 nullable
+  - `/data`·`/stop`·`/analysis`는 `ElderMeasure.jsx`가 `src/api/session.js`를 직접 호출하지 않고 **`src/store/uploadQueue.js`**(SecureStore 기반 오프라인 큐)를 거친다. 네트워크 실패는 큐에 남아 다음 flush(`ElderMeasure`·`ElderHome`·`ElderHistory` 진입 시)에 재시도되고, 서버가 정상 응답한 실패(ApiError)만 버린다. 새 업로드 호출을 추가할 땐 `uploadData`/`stopSession`/`uploadAnalysis`를 직접 부르지 말고 `enqueue()`로 넣을 것
+  - ⚠️ **`/data`는 `minuteAt < session.startedAt`인 데이터를 백엔드가 조용히 걸러낸다**(`SessionService.uploadData`, 앱 시계 오류 방어용). `startedAt`은 `POST /start`가 실제 성공한 시각으로 찍히므로, **와이파이·데이터가 전부 꺼진 채로 측정을 시작**해 `ensureSession()`이 그 순간 실패하면 오프라인 큐가 나중에(재연결 후) 세션을 뒤늦게 만들게 되고 — 그러면 그보다 앞선 실제 걸음의 분당 데이터가 전부 걸러진다. `/analysis`(세션 종합 결과, "기록" 목록에 뜨는 것)는 이 시간 필터가 없어 세션 자체는 정상적으로 남지만, 그 세션의 분당 그래프는 비게 된다. **프론트에서 완전히 해결 불가**(백엔드 수정 금지) — `POST /start`가 과거 시각을 받게 하거나 시간 필터를 없애야 근본 해결.
 - **리포트 `/api/gait/reports`**: GET /{sessionId} · GET /daily(WARD,7일) · GET /ward/{wardId}/daily?days=7|30|90(GUARDIAN) · GET /dashboard(GUARDIAN)
 - **위치 `/api/locations`**: POST /(WARD `{latitude,longitude}`) · GET /stream/{wardId}(GUARDIAN, SSE) · GET /{wardId}/history?date=YYYY-MM-DD(GUARDIAN, date 생략 시 오늘 KST)
 - 톤 매핑: 백엔드 riskLevel은 2단계(NORMAL/SUSPECTED) → UI 3단계는 `risk.js`에서 산출
@@ -158,5 +160,4 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** — 전용 UI는 만들지 않음(시연 모드에 클래스명만)
 - FCM **실발송**은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 동작(프론트 연동은 완료)
 - ★ **백그라운드 상시 측정** — 위 '측정 방식' 참고. 현재 인프라가 전무하다(`expo-task-manager`·foreground service 없음, 센서 구독이 `ElderMeasure` 화면 생명주기에 묶여 있음). 필요: Android foreground service(지속 알림 필수) · 배터리 최적화 예외 요청 · 백그라운드에서 `react-native-fast-tflite` 추론 가능 여부 검증 · 배터리 소모 측정
-- ★ **오프라인 큐 (SQLite 누적 → 복구 시 동기화)** — **백엔드는 이미 준비됨**: `POST /{id}/data`가 `ON CONFLICT (session_id, minute_at) DO NOTHING`으로 **중복 전송을 자동 무시**하고 `{saved, skipped}`를 돌려준다. 즉 **같은 데이터를 몇 번 보내도 안전**하므로 프론트는 성공 확인 없이 재전송해도 된다. 폰이 꺼져도 `GET /active`로 진행 중 세션을 이어받을 수 있다. ⚠️ **프론트는 큐가 전혀 없고 업로드 실패를 `.catch(() => {})`로 조용히 버린다**(`ElderMeasure` 4곳) — 지하철에서 측정하면 데이터가 영구 소실되는데 사용자는 저장된 줄 안다. 상시 측정이 붙으면 손실 규모가 커진다
 - 3차 이상유형 분류 모델 · Google Play 출시

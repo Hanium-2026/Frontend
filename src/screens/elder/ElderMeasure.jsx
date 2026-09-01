@@ -15,7 +15,8 @@ import { useGaitPipeline } from '../../ml/useGaitPipeline';
 import { createStepCounter, createTurnDetector, createGaitFilter, computeGaitMetrics } from '../../ml/gaitPreprocess';
 import { sessionStore } from '../../store/sessionStore';
 import { tokenStore } from '../../store/tokenStore';
-import { ensureSession, uploadData, stopSession, uploadAnalysis, toMinuteAt } from '../../api/session';
+import { enqueue, flushUploadQueue } from '../../store/uploadQueue';
+import { ensureSession, toMinuteAt } from '../../api/session';
 import { getPhysicalInfo } from '../../api/ward';
 import { riskTone } from '../../risk';
 
@@ -107,6 +108,8 @@ export default function ElderMeasure() {
     ensureSession()
       .then((s) => { if (alive) sessionIdRef.current = s?.sessionId ?? null; })
       .catch(() => {});
+    // 지난 측정에서 네트워크 실패로 못 보낸 큐가 있으면 여기서 재시도.
+    flushUploadQueue().catch(() => {});
     // 키 → 보폭(m). 이동 거리 = 걸음 수 × 보폭. 실패/미등록이면 기본 0.70m 유지.
     getPhysicalInfo()
       .then((info) => { const h = Number(info?.height); if (h > 0) stepLenRef.current = 0.43 * (h / 100); })
@@ -200,13 +203,15 @@ export default function ElderMeasure() {
           const enteredDanger = isDanger && !inDangerRef.current;
           inDangerRef.current = isDanger;
 
-          // 분당 집계: 분이 바뀌면 직전 분을 백엔드로 업로드(중복 전송은 서버가 무시)
+          // 분당 집계: 분이 바뀌면 직전 분을 큐에 넣고 바로 전송 시도(중복 전송은 서버가 무시,
+          // 네트워크 실패해도 큐에 남아 다음 기회에 재시도됨 — sessionId가 아직 없어도 큐가 나중에 채움).
           if (useBackend) {
             const key = toMinuteAt();
             const m = minuteRef.current;
             if (m.key && m.key !== key && m.scores.length) {
-              const sid = sessionIdRef.current;
-              if (sid) uploadData(sid, [aggregateMinute(m)]).catch(() => {});
+              enqueue({ type: 'data', sessionId: sessionIdRef.current, data: [aggregateMinute(m)] })
+                .then(flushUploadQueue)
+                .catch(() => {});
               minuteRef.current = { key, scores: [r.score], danger: enteredDanger ? 1 : 0 };
             } else {
               if (!m.key) m.key = key;
@@ -298,29 +303,37 @@ export default function ElderMeasure() {
     const summary = buildSummary(lowConfidence);
     sessionStore.set(summary);
 
-    // 백엔드 마무리: 잔여 분 데이터 → 종료 → 분석 결과. 실패해도 결과 화면은 이동.
+    // 백엔드 마무리: 잔여 분 데이터 → 종료 → 분석 결과를 큐에 넣고 바로 전송 시도.
+    // 실패해도 결과 화면은 이동 — 큐에 남아 다음 기회(다음 측정 진입 등)에 재시도된다.
+    // sessionId가 아직 없어도(오프라인 상태로 측정 시작) 큐가 flush 시점에 나중에 채운다.
     const sid = sessionIdRef.current;
-    if (useBackend && sid && summary) {
+    if (useBackend && summary) {
       (async () => {
         const m = minuteRef.current;
-        if (m.scores.length) await uploadData(sid, [aggregateMinute(m)]);
-        await stopSession(sid);
+        if (m.scores.length) await enqueue({ type: 'data', sessionId: sid, data: [aggregateMinute(m)] });
+        await enqueue({ type: 'stop', sessionId: sid });
         // 저신뢰(짧은 측정)는 분석을 올리지 않는다. 백엔드는 analysis 요청에서 daily_scores를
         // 만들고 gait_reports도 여기서 생기므로, 올리면 몇 걸음짜리 점수가 하루 평균에 섞이고
         // 기록 목록에도 남는다. 올리지 않으면 양쪽 다 깨끗하고 보호자 FCM도 뜨지 않는다.
         if (summary.lowConfidence) return;
-        await uploadAnalysis(sid, {
-          riskLevel: summary.riskLevel,
-          avgScore: summary.avgScore,
-          minScore: summary.minScore,
-          maxScore: summary.maxScore,
-          dangerCount: summary.dangerCount,
-          reportSummary: null,
-          variabilityScore: summary.variability,
-          // 백엔드는 asymmetryScore(0~1)를 받아 (1-x)*100으로 symmetryScore를 만든다 → symmetry(100=대칭)를 역변환.
-          asymmetryScore: summary.symmetry != null ? (100 - summary.symmetry) / 100 : null,
+        await enqueue({
+          type: 'analysis',
+          sessionId: sid,
+          payload: {
+            riskLevel: summary.riskLevel,
+            avgScore: summary.avgScore,
+            minScore: summary.minScore,
+            maxScore: summary.maxScore,
+            dangerCount: summary.dangerCount,
+            reportSummary: null,
+            variabilityScore: summary.variability,
+            // 백엔드는 asymmetryScore(0~1)를 받아 (1-x)*100으로 symmetryScore를 만든다 → symmetry(100=대칭)를 역변환.
+            asymmetryScore: summary.symmetry != null ? (100 - summary.symmetry) / 100 : null,
+          },
         });
-      })().catch(() => {});
+      })()
+        .then(flushUploadQueue)
+        .catch(() => {});
     }
 
     router.push('/(elder)/result');
