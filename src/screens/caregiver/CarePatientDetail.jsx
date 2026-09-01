@@ -6,6 +6,7 @@ import T from '../../tokens';
 import Card from '../../components/Card';
 import Pill from '../../components/Pill';
 import AppHeader from '../../components/AppHeader';
+import SectionLabel from '../../components/SectionLabel';
 import DailyTrend from '../../components/DailyTrend';
 import { getGuardianDailyReport } from '../../api/reports';
 import { disconnectWard } from '../../api/links';
@@ -14,6 +15,18 @@ import { ApiError } from '../../api/client';
 
 const round = (n) => (n == null ? 0 : Math.round(n));
 const PERIODS = [['7일', 7], ['30일', 30], ['90일', 90]];
+const MAX_SESSIONS = 20;
+
+// "오늘 14:14" / "어제 18:01" / "5/16 17:45"
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const dayDiff = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (dayDiff === 0) return `오늘 ${hm}`;
+  if (dayDiff === 1) return `어제 ${hm}`;
+  return `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
 
 export default function CarePatientDetail() {
   const router = useRouter();
@@ -23,7 +36,7 @@ export default function CarePatientDetail() {
 
   const [days, setDays] = useState(7);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);  // { dailyScores, todayMetrics }
+  const [data, setData] = useState(null);  // { dailyScores, todayMetrics, sessions }
 
   useEffect(() => {
     if (!wardId) { setLoading(false); return; }
@@ -54,6 +67,18 @@ export default function CarePatientDetail() {
   const tm = data?.todayMetrics ?? null;
   // TodayMetrics엔 riskLevel이 없다(점수·범위만 옴) — 점수만으로 톤을 낸다.
   const tone = tm ? riskTone(tm.avgScore) : 'ok';
+
+  // 선택 기간 내 세션 목록 — 백엔드가 createdAt desc로 주므로 최신 MAX_SESSIONS개만 자른다.
+  const records = (data?.sessions ?? []).slice(0, MAX_SESSIONS).map((s) => {
+    const t = riskTone(s.avgScore, s.riskLevel);
+    return {
+      key: s.sessionId,
+      d: fmtWhen(s.createdAt),
+      s: round(s.avgScore),
+      t,
+      n: s.symmetryScore != null ? `좌우 대칭 ${round(s.symmetryScore)}%` : RISK_LABEL[t],
+    };
+  });
 
   const H = 110;
   const n = daily.length;
@@ -134,6 +159,36 @@ export default function CarePatientDetail() {
                 </View>
               )}
             </Card>
+
+            <View>
+              <SectionLabel>측정 기록</SectionLabel>
+              <Card pad={0}>
+                {records.length === 0 && (
+                  <View style={{ padding: T.sp.xl, alignItems: 'center' }}>
+                    <Text style={{ fontSize: T.fs.caption, color: T.muted, fontFamily: T.fontSemiBold }}>표시할 세션이 없어요.</Text>
+                  </View>
+                )}
+                {records.map((r, i) => (
+                  <Pressable
+                    key={r.key}
+                    onPress={() => router.push({ pathname: '/(caregiver)/session-detail', params: { sessionId: String(r.key) } })}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                      minHeight: 56, paddingVertical: T.sp.md, paddingHorizontal: T.sp.xl,
+                      borderBottomWidth: i < records.length - 1 ? 1 : 0, borderBottomColor: T.line,
+                    }}>
+                    <View>
+                      <Text style={{ fontSize: T.fs.body, fontFamily: T.fontSemiBold, color: T.ink }}>{r.d}</Text>
+                      <Text style={{ fontSize: T.fs.caption, color: T.muted, marginTop: 2 }}>{r.n}</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: T.sp.md }}>
+                      <Pill tone={r.t} size="sm">{RISK_LABEL[r.t]}</Pill>
+                      <Text style={{ fontSize: T.fs.h, fontFamily: T.fontSemiBold, color: T.ink }}>{r.s}</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </Card>
+            </View>
 
             <Pressable onPress={handleDisconnect} style={{ alignItems: 'center', paddingVertical: T.sp.sm }}>
               <Text style={{ fontSize: T.fs.caption, color: T.muted, textDecorationLine: 'underline' }}>연결 해제</Text>
