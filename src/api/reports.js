@@ -12,4 +12,6 @@ export const getGuardianDailyReport = (wardId, days = 30) =>
 export const getDashboard = () => api.get('/api/gait/reports/dashboard');
 
 // 세션 단건 상세 (WARD 본인 / GUARDIAN 연동 노약자).
+// minuteScores: [{minuteAt, avgScore, minScore, maxScore, dangerCount}] — 분당 집계, minuteAt 오름차순.
+// 세션 점수는 7일 뒤 만료되므로 그 이후 조회하면 빈 배열이 온다.
 export const getSessionReport = (sessionId) => api.get(`/api/gait/reports/${sessionId}`);
