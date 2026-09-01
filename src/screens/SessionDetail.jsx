@@ -20,6 +20,27 @@ import { riskTone, RISK_LABEL } from '../risk';
 //  · sessionId 있음 → 서버 리포트 (WARD 기록 · GUARDIAN 알림에서 진입)
 // ⚠️ 확정 디자인은 이 화면에 탭바를 두지 않는다(보호자도 보는 공용 화면).
 
+// 두 출처의 시계열을 차트 한 모양 {points:[{raw,smooth}], dangerAt, unit}으로 맞춘다.
+//  · window(측정 직후) — raw=매 윈도우 원점수, smooth=EWMA. 가로축 한 칸이 STRIDE(0.64초)
+//  · minute(서버 리포트) — raw=그 1분의 최저 점수, smooth=분 평균. 가로축 한 칸이 1분
+// 가로축 단위가 다르므로 화면에서 unit으로 설명 문구를 갈라준다.
+const fromTrend = (t) => t && ({
+  points: t.raw.map((r, i) => ({ raw: r, smooth: t.smooth[i] ?? r })),
+  dangerAt: t.dangerAt,
+  unit: 'window',
+});
+
+// 서버 리포트의 분당 데이터(minuteScores). 세션 점수는 7일 뒤 만료돼 빈 배열로 오므로 그땐 그래프 없음.
+const fromMinutes = (list) => {
+  const rows = (list || []).filter((m) => m.avgScore != null);
+  if (!rows.length) return null;
+  return {
+    points: rows.map((m) => ({ raw: m.minScore ?? m.avgScore, smooth: m.avgScore })),
+    dangerAt: rows.reduce((acc, m, i) => (m.dangerCount > 0 ? [...acc, i] : acc), []),
+    unit: 'minute',
+  };
+};
+
 const fromLocal = (s) => s && ({
   at: s.at,
   avgScore: s.avgScore,
@@ -27,7 +48,7 @@ const fromLocal = (s) => s && ({
   maxScore: s.maxScore,
   dangerCount: s.dangerCount,
   riskLevel: s.riskLevel,
-  trend: s.trend,   // {raw, smooth, dangerAt} — 측정 직후에만 있음(서버 리포트는 시계열을 안 내려줌)
+  chart: fromTrend(s.trend),
   summary: null,
   lowConfidence: s.lowConfidence,
 });
@@ -39,7 +60,7 @@ const fromReport = (r) => r && ({
   maxScore: r.maxScore,
   dangerCount: r.dangerCount,
   riskLevel: r.riskLevel,
-  trend: null,      // 서버는 세션 시계열을 저장하지 않음 — 그래프 없이 위험 신호 횟수만 표시
+  chart: fromMinutes(r.minuteScores),
   summary: r.reportSummary,
   lowConfidence: false,
 });
@@ -76,13 +97,8 @@ export default function SessionDetail() {
         : '이번 측정의 보행이 안정적으로 기록됐어요.'
   ));
 
-  // 이상 에피소드 그래프용 — 측정 직후(local)에만 시계열이 있다(서버는 세션 시계열을 저장하지 않음).
-  const chartPoints = data?.trend
-    ? data.trend.raw.map((r, i) => ({ raw: r, smooth: data.trend.smooth[i] ?? r }))
-    : null;
-  const chartAvg = chartPoints && chartPoints.length
-    ? Math.round(chartPoints.reduce((sum, p) => sum + p.raw, 0) / chartPoints.length)
-    : null;
+  // 이상 에피소드 그래프 — 측정 직후는 윈도우 시계열, 기록 열람은 서버 분당 데이터.
+  const chart = data?.chart;
 
   const onShare = () => {
     if (!data) return;
@@ -162,7 +178,7 @@ export default function SessionDetail() {
               </Card>
             </View>
 
-            {/* 이상 에피소드 — 위험 신호가 왜 찍혔는지 점수 그래프로 보여준다(그래프는 측정 직후에만 있음). */}
+            {/* 이상 에피소드 — 위험 신호가 왜 찍혔는지 점수 그래프로 보여준다. */}
             <View style={{ paddingHorizontal: T.sp.lg, marginTop: T.sp.lg }}>
               <Card pad={T.sp.xl}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -170,15 +186,20 @@ export default function SessionDetail() {
                   <Pill tone={tone} size="sm">{RISK_LABEL[tone]}</Pill>
                 </View>
 
-                {chartPoints && chartPoints.length >= 2 && (
+                {chart && chart.points.length >= 2 && (
                   <>
                     <View style={{ marginTop: T.sp.lg }}>
-                      <TrustChart data={chartPoints} avg={chartAvg} height={64} dangerAt={data.trend.dangerAt}/>
+                      <TrustChart data={chart.points} avg={data.avgScore} height={64} dangerAt={chart.dangerAt}/>
                     </View>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                       <Text style={{ fontSize: T.fs.caption, color: T.muted }}>측정 시작</Text>
                       <Text style={{ fontSize: T.fs.caption, color: T.muted }}>측정 종료</Text>
                     </View>
+                    {chart.unit === 'minute' && (
+                      <Text style={{ fontSize: T.fs.caption, color: T.muted, lineHeight: 20, marginTop: T.sp.xs }}>
+                        1분마다의 평균 점수(파랑)와 그 1분에서 가장 낮았던 점수(회색)예요.
+                      </Text>
+                    )}
                     <View style={{ height: 1, backgroundColor: T.line, marginTop: T.sp.md, marginBottom: T.sp.xs }}/>
                   </>
                 )}
