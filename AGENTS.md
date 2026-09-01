@@ -153,7 +153,7 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 ## 열린 작업
 완료 내역은 git 히스토리에 있다. 여기엔 **아직 안 된 것 + 그것이 코드 판단에 주는 제약**만 적는다.
 
-- ★ **`CareLocation` 오늘 동선** — 프론트는 `getLocationHistory` + `NaverMapPathOverlay`까지 붙어 있고 **백엔드 대기 중**. `locations`가 `ward_id` 유니크 upsert라 이력이 없어 현재는 빈 동선. 필요 스펙: ① insert-only 이력 테이블(기존 upsert 테이블은 SSE용 유지) ② `GET /api/locations/{wardId}/history?date=YYYY-MM-DD`(GUARDIAN). **엔드포인트 생기면 즉시 동작하므로 프론트 코드를 지우지 말 것**
+- ★ **`CareLocation` 오늘 동선** — **실기기/로컬 검증 대기 중**(2026-09-01). 백엔드 develop에 `GET /api/locations/{wardId}/history`(insert-only `LocationHistory` 테이블) 구현·병합됨(PR #13) — 프론트 `getLocationHistory` + `NaverMapPathOverlay` 계약과 일치, 코드 수정 없이 동작할 것으로 보임. 실제로 동선이 그려지는지 확인 후 [CareLocation.jsx](src/screens/caregiver/CareLocation.jsx)의 "동선 준비 중" 안내 문구 제거할 것
 - ★ **네이티브 모듈 추가 후 EAS dev build 필요** — 네이버 지도·FCM은 기존 빌드로 동작 안 함
 - ★ **Render 배포 백엔드 타임존 미고정(추정 UTC) — 자정~오전 9시(KST) 측정이 "어제"로 집계됨.** `application.yml`에 `spring.jackson.time-zone`·`TZ` 등 타임존 설정이 전혀 없어 `LocalDateTime.now()`(`SessionService` 세션/`upsertDailyScore` 등)가 서버 OS 기본값(Render 컨테이너 추정 UTC)을 그대로 씀. 증상 둘 다 이 하나의 원인: ① `gait_reports.created_at`이 UTC로 찍히고 프론트가 타임존 표기 없는 문자열을 로컬(KST)로 오인 파싱(`new Date(iso)`) → 기록 화면에 "어제 17:40"처럼 실제보다 하루 전으로 표시 ② 같은 서버 시계로 만든 `daily_scores.date`도 UTC 기준이라 KST "오늘"에 해당하는 행이 없음 → `ElderHome`의 오늘 점수가 `--`. **프론트에서 보정 불가**(로컬 PC 백엔드는 이미 KST라 보정하면 그쪽이 깨짐) — 서버 시계/직렬화를 Asia/Seoul로 고정해야 근본 해결.
 - ★ **실기기 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 `pRaw`를 0.5 위로 올리는 것 확정
