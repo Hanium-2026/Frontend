@@ -11,6 +11,7 @@ import DailyTrend from '../../components/DailyTrend';
 import AppHeader from '../../components/AppHeader';
 import TabBar from '../../components/TabBar';
 import { getDailyReport } from '../../api/reports';
+import { flushUploadQueue } from '../../store/uploadQueue';
 import { riskTone, RISK_LABEL } from '../../risk';
 import { fillDays } from '../../daily';
 
@@ -40,7 +41,10 @@ export default function ElderHistory() {
   const [data, setData] = useState(null);   // { dailyScores, sessions }
 
   useEffect(() => {
-    getDailyReport()
+    // 오프라인 큐에 남은 측정이 있으면 먼저 올려본 뒤 조회 — 그래야 방금 복구된 데이터도 바로 보인다.
+    flushUploadQueue()
+      .catch(() => {})
+      .then(() => getDailyReport())
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
