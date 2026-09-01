@@ -159,5 +159,9 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - ★ **실기기 이상 보행 연출 탐색** — 절뚝/종종걸음/무릎 고정 중 `pRaw`를 0.5 위로 올리는 것 확정
 - ★ **running·계단 pocket 데이터로 1차 활동분류 실익 검증** — 전용 UI는 만들지 않음(시연 모드에 클래스명만)
 - FCM **실발송**은 백엔드가 `nevo-a5a79` service account 키를 `FcmConfig`에 넣어야 동작(프론트 연동은 완료)
-- ★ **백그라운드 상시 측정** — 위 '측정 방식' 참고. 현재 인프라가 전무하다(`expo-task-manager`·foreground service 없음, 센서 구독이 `ElderMeasure` 화면 생명주기에 묶여 있음). 필요: Android foreground service(지속 알림 필수) · 배터리 최적화 예외 요청 · 백그라운드에서 `react-native-fast-tflite` 추론 가능 여부 검증 · 배터리 소모 측정
+- ★ **백그라운드 상시 측정** — 위 '측정 방식' 참고. 센서 구독이 `ElderMeasure` 화면 생명주기에 묶여 있어 실제 파이프라인 이관은 아직 손 안 댐. 타당성 검증(`src/ml/bgProbe.js`, 개발용 패널은 `ServerConfig`)은 진행 중:
+  - ⚠️ **메인 JS 컨텍스트의 `setInterval`은 백그라운드에서 완전히 멈춘다**(foreground service 알림이 떠 있어도 무관, 2026-09-02 실기기 Galaxy S21로 확인). RN은 화면(Activity)에 묶인 JS 컨텍스트 하나만 돌리므로 애초에 틀린 경로 — 주기 실행은 반드시 `TaskManager.defineTask` 콜백(OS가 직접 깨움) 안에서 해야 한다.
+  - ⚠️ **`app.json`에 `isAndroidBackgroundLocationEnabled`가 빠져 있어 `ACCESS_BACKGROUND_LOCATION` 권한 자체가 매니페스트에 없었다** — `TaskManager` 콜백조차 백그라운드에서 한 번도 안 불림(걸어다니면서 테스트해도 동일, 2026-09-02). `expo-location`의 foreground service 옵션만으로는 부족했음 — **추가하고 새 EAS dev build 필요**(네이티브 매니페스트 변경, Metro 리로드로 반영 안 됨), 빌드 후 재검증 필수.
+  - ⚠️ **`expo-location`의 foreground service 알림(`notificationTitle`/`notificationBody`)은 앱이 포그라운드일 때만 갱신된다** — 네이티브 소스 확인(`LocationTaskConsumer.kt`의 `maybeStartForegroundService`가 `AppForegroundedSingleton.isForegrounded`를 체크). 그래서 상태바에 실시간 점수를 보여주려면 이 알림이 아니라 **`expo-notifications`의 별도 알림**(같은 `identifier`로 갱신, 포그라운드 여부 무관)을 써야 한다 — `bgProbe.js`의 `updateScoreNotification`이 그 패턴. 실제 파이프라인 이관 시 이 패턴을 그대로 가져갈 것
+  - 남은 확인: 새 빌드로 `bgTicks`가 백그라운드에서도 늘어나는지, 배터리 최적화 예외 요청, 배터리 소모 측정
 - 3차 이상유형 분류 모델 · Google Play 출시

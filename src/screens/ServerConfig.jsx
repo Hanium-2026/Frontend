@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import T from '../tokens';
 import Icon from '../icons';
 import { serverConfig, DEFAULT_BACKEND_BASE } from '../store/serverConfig';
-import { startProbe, stopProbe, clearProbe, readProbe } from '../ml/bgProbe';
+import { startProbe, stopProbe, clearProbe, readProbe, FG_TICK_MS, BG_TIME_INTERVAL_MS } from '../ml/bgProbe';
 
 // 백엔드 서버 주소 설정 화면. 로컬 테스트 시 노트북 LAN IP로 바꾸는 등
 // APK 재빌드 없이 여기서 주소를 바꿔 저장한다.
@@ -89,23 +89,27 @@ export default function ServerConfig() {
           </Pressable>
 
           {/* ── 백그라운드 상시 측정 검증 (개발용) ──────────────────────────
-              foreground service로 프로세스를 살려 두고 2초마다 TFLite 추론을 돌린다.
-              시작 → 홈 버튼 → 2분 뒤 복귀 → «실제»가 «예상»을 따라왔으면 백그라운드 추론이 된다. */}
+              두 경로를 동시에 검증한다 — fg(메인 컨텍스트 setInterval)는 v1에서 이미
+              백그라운드 시 멈추는 것으로 확인됨(2026-09-02). bg(TaskManager 콜백)가
+              백그라운드에서도 계속 늘면 진짜 해법. 시작 → 홈 버튼 → 몇 분 뒤 복귀해서 비교. */}
           <View style={{ marginTop: 36, paddingTop: 24, borderTopWidth: 1, borderTopColor: T.line }}>
             <Text style={{ fontSize: 24, fontFamily: T.fontExtraBold, color: T.ink, letterSpacing: -0.6 }}>백그라운드 검증</Text>
             <Text style={{ fontSize: 13, color: T.muted, marginTop: 8, lineHeight: 20 }}>
-              지속 알림을 띄우고 2초마다 추론을 돌립니다. 시작한 뒤 홈 버튼으로 나갔다가
-              2분쯤 뒤 돌아오세요. «실제»가 «예상»을 따라왔으면 백그라운드 추론이 가능합니다.
+              지속 알림을 띄우고 두 경로에서 동시에 추론을 돌립니다. 시작한 뒤 홈 버튼으로
+              나갔다가 몇 분 뒤 돌아오세요. fg는 백그라운드에서 멈추는 게 이미 확인된 경로,
+              bg가 그때도 늘어나 있으면 백그라운드 추론이 가능합니다.
             </Text>
 
             {probe && (
               <View style={{ marginTop: 16, backgroundColor: T.bg, borderRadius: 12, padding: 14, gap: 6 }}>
                 {(() => {
-                  const expected = Math.floor((Date.now() - probe.startedAt) / 2000);
+                  const fgExpected = Math.floor((Date.now() - probe.startedAt) / FG_TICK_MS);
+                  const bgExpected = Math.floor((Date.now() - probe.startedAt) / BG_TIME_INTERVAL_MS);
                   const alive = probe.lastTickAt != null && Date.now() - probe.lastTickAt < 6000;
                   const rows = [
-                    ['추론 (실제 / 예상)', `${probe.ticks} / ${expected}`],
-                    ['마지막 추론', probe.lastTickAt ? `${Math.round((Date.now() - probe.lastTickAt) / 1000)}초 전` : '없음'],
+                    ['fg (실제/예상)', `${probe.fgTicks} / ${fgExpected}`],
+                    ['bg (실제/예상)', `${probe.bgTicks} / ${bgExpected}`],
+                    ['마지막 추론', probe.lastTickAt ? `${probe.lastKind} · ${Math.round((Date.now() - probe.lastTickAt) / 1000)}초 전` : '없음'],
                     ['추론 시간', probe.lastMs != null ? `${probe.lastMs} ms` : '--'],
                     ['P(이상)', probe.lastP != null ? String(probe.lastP) : '--'],
                     ['상태', alive ? '돌고 있음' : '멈춤'],
