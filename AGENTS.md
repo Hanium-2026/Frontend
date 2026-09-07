@@ -65,7 +65,7 @@ WARD `result`·`session-detail`, GUARDIAN `session-detail` 세 라우트가 모�
 - 타입스케일 `T.fs`(노인 친화: 본문 17px+, 캡션 14px+, **9~13px 본문 금지**), 터치 `T.tap`(56). 신규 화면은 인라인 숫자 대신 이걸 사용
 - 색상: `T.blue/blueDark/blueSoft/blueWash`, `T.ok/caution/danger(+Soft)`, `T.ink/body/muted/line/bg`
 - 위험도 색 기준은 **`src/risk.js`의 `riskTone(score, riskLevel)`로 일원화** (점수<50=danger, SUSPECTED 또는 50~69=caution, 그 외 ok). 화면별 하드코딩 금지
-- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · DailyTrend · TrustChart · IMUTrace · RangeBar
+- 공통 컴포넌트: Card · Pill · Avatar · TabBar · AppHeader · SectionLabel · SparkLine · DailyTrend · TrustChart · RangeBar
 - 일별 점수 추세는 **`DailyTrend`(선)** 를 쓴다. 막대(`BarChart`)는 제거됨 — 점수는 합산되는 양이 아니라 0~100 척도 위의 위치이고,
   막대는 기록 없는 날과 0점을 구분하지 못한다. 근거는 [docs/REDESIGN.md](docs/REDESIGN.md) 「차트」 절
 - 오늘/이번 측정 점수가 0~100 척도 어디쯤인지는 **`RangeBar`**(범위 띠+마커)로 보여준다(WARD 홈·측정결과)

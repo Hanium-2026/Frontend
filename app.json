@@ -13,9 +13,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#F4F6F8"
     },
-    "ios": {
-      "supportsTablet": true
-    },
     "android": {
       "package": "com.nevo.app",
       "googleServicesFile": "./google-services.json",
@@ -29,11 +26,6 @@
         "WAKE_LOCK",
         "HIGH_SAMPLING_RATE_SENSORS"
       ]
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
